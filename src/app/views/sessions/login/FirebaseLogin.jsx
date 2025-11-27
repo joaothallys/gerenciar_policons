@@ -99,15 +99,15 @@ export default function FirebaseLogin() {
           <Grid item md={6} xs={12}>
             <div className="cardLeft">
               <Logo>
-                <MatxLogo /> <span>Disparador</span>
+                <MatxLogo /> <span>Policoins</span>
               </Logo>
 
-              <h1 className="mainTitle">Bem-vindo ao Disparador de Mensagens</h1>
+              <h1 className="mainTitle">Bem-vindo ao Sistema de Gerenciamento de Policoins</h1>
 
               <div className="features">
-                <div className="item">Autenticação segura e confiável</div>
-                <div className="item">Ambiente organizado e intuitivo</div>
-                <div className="item">Painel prático para gerenciamento de usuários</div>
+                <div className="item">Autenticação segura com tokens JWT</div>
+                <div className="item">Gerenciamento completo de transações</div>
+                <div className="item">Controle total de metas e produtos</div>
               </div>
 
               <Span flexGrow={1}></Span>

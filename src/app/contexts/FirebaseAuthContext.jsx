@@ -48,18 +48,16 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initialize = () => {
       const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
-      const userData = JSON.parse(localStorage.getItem("user_data"));
 
       console.log("Inicializando autenticação. Estado armazenado:", isAuthenticated);
 
-      if (isAuthenticated && userData) {
-        // Verifica se o usuário está autenticado e se os dados existem
+      if (isAuthenticated) {
         dispatch({
           type: "INITIALIZE",
           payload: {
             isAuthenticated: true,
-            user: userData,
-            role: userData.roles[0]?.name || null,
+            user: null,
+            role: null,
           },
         });
       } else {
@@ -75,24 +73,19 @@ export const AuthProvider = ({ children }) => {
       console.log("Tentando login...");
       const response = await authService.login(email, password);
 
-      // Se a resposta for sucesso e o papel for "adm"
-      const userData = JSON.parse(localStorage.getItem("user_data"));
-      const role = userData?.roles?.[0]?.name || null;
-
-      if (role === "adm") {
+      if (response.authorized) {
         // Salvar estado no localStorage
         localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("user_data", JSON.stringify(userData));
 
         dispatch({
           type: "LOGIN",
-          payload: { user: userData, role },
+          payload: { user: null, role: null },
         });
 
         navigate("/dashboard/default");
       } else {
-        // Caso o usuário não seja um administrador
-        throw new Error("Você não é um administrador.");
+        // Caso o login falhe
+        throw new Error(response.message || "Erro ao fazer login.");
       }
     } catch (error) {
       console.error("Erro ao fazer login:", error);
@@ -103,11 +96,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       console.log("Fazendo logout...");
-      await authService.logout();
 
       // Remover estado do localStorage
       localStorage.removeItem("isAuthenticated");
-      localStorage.removeItem("user_data");
+      localStorage.removeItem("accessToken");
 
       dispatch({ type: "LOGOUT" });
       navigate("/session/signin");
