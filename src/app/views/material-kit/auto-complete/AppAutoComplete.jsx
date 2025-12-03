@@ -268,7 +268,7 @@ export default function TransactionsPage() {
       if (!token) return;
 
       const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
-      
+
       try {
         setLoadingUsers(true);
         const res = await fetch(`${apiHost}/users`, {
@@ -314,7 +314,7 @@ export default function TransactionsPage() {
       if (!token) return;
 
       const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
-      
+
       try {
         setLoadingProducts(true);
         const res = await fetch(`${apiHost}/products?page=${productsPage}&per_page=10`, {
@@ -806,8 +806,19 @@ export default function TransactionsPage() {
               onChange={(event, value) => setPage(value)}
               color="primary"
               disabled={fetching}
-              size={{ xs: "small", sm: "medium" }}
+              size="medium"
               variant="outlined"
+              sx={{
+                "& .MuiPagination-ul": {
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                },
+                "& .MuiPaginationItem-root": {
+                  fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                  minWidth: { xs: "24px", sm: "32px" },
+                  height: { xs: "24px", sm: "32px" },
+                }
+              }}
             />
           </Box>
         )}
@@ -924,8 +935,8 @@ export default function TransactionsPage() {
                 {isPointsGainedType(formData.typeID)
                   ? "Desabilitado para Pontos Ganhos"
                   : loadingProducts
-                  ? "Carregando produtos..."
-                  : "Selecione um Produto"}
+                    ? "Carregando produtos..."
+                    : "Selecione um Produto"}
               </MenuItem>
               {products.map((product) => (
                 <MenuItem key={product.id} value={product.id}>
