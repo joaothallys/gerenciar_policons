@@ -172,11 +172,16 @@ export default function TransactionsPage() {
   const [productsPage, setProductsPage] = useState(1);
   const [totalProductsPages, setTotalProductsPages] = useState(1);
 
+  // Estados para filtro de usuários
+  const [filterUsers, setFilterUsers] = useState([]);
+  const [loadingFilterUsers, setLoadingFilterUsers] = useState(false);
+
   // Estados de Filtro
   const [filters, setFilters] = useState({
     search: "",
-    type: "",
-    paymentMethod: "",
+    userId: "",
+    startDate: "",
+    endDate: "",
   });
 
   // Estados de Paginação
@@ -219,13 +224,20 @@ export default function TransactionsPage() {
       return;
     }
 
-    const payload = parseJwt(token);
-    const userId = payload?.user_id || payload?.userId || payload?.usuario_id || payload?.sub || undefined;
-
-    // montar URL com page e per_page dinâmicos
-    const idSegment = userId !== undefined ? userId : "undefined";
     const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
-    const url = `${apiHost}/transactions/user/${idSegment}?page=${page}&per_page=${itemsPerPage}`;
+
+    // Se tiver filtro de usuário selecionado, usar esse ID específico
+    // Se não tiver filtro, usar o placeholder literal "{user_id}" para buscar todos
+    const userId = filters.userId || "{user_id}";
+
+    // Construir URL com parâmetros de data se fornecidos
+    let url = `${apiHost}/transactions/user/${userId}?page=${page}&per_page=${itemsPerPage}`;
+    if (filters.startDate) {
+      url += `&start_date=${filters.startDate}`;
+    }
+    if (filters.endDate) {
+      url += `&end_date=${filters.endDate}`;
+    }
 
     try {
       setFetching(true);
@@ -277,7 +289,49 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [page]);
+  }, [page, filters.userId, filters.startDate, filters.endDate]);
+
+  // Buscar usuários para o filtro
+  useEffect(() => {
+    async function fetchFilterUsers() {
+      const token = localStorage.getItem("accessToken");
+      if (!token) return;
+
+      const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+
+      try {
+        setLoadingFilterUsers(true);
+        const res = await fetch(`${apiHost}/users`, {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          console.error(`Erro ao buscar usuários para filtro: ${res.status}`);
+          setLoadingFilterUsers(false);
+          return;
+        }
+
+        const json = await res.json();
+        const usersList = (json.users || json || []).map((u) => ({
+          id: u.id,
+          name: u.username || u.name || `Usuário ${u.id}`,
+          username: u.username,
+          email: u.email,
+        }));
+        setFilterUsers(usersList);
+      } catch (error) {
+        console.error("Erro ao buscar usuários para filtro:", error);
+      } finally {
+        setLoadingFilterUsers(false);
+      }
+    }
+
+    fetchFilterUsers();
+  }, []);
 
   // Buscar usuários para o select do modal
   useEffect(() => {
@@ -531,12 +585,6 @@ export default function TransactionsPage() {
     ) {
       return false;
     }
-    if (filters.type && t.typeID != filters.type) {
-      return false;
-    }
-    if (filters.paymentMethod && t.payment_method_id != filters.paymentMethod) {
-      return false;
-    }
     return true;
   });
 
@@ -635,7 +683,7 @@ export default function TransactionsPage() {
       {/* Filtros */}
       <FilterCard>
         <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
             <TextField
               fullWidth
               size="small"
@@ -646,41 +694,51 @@ export default function TransactionsPage() {
               placeholder="Nome, tipo, produto..."
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
             <Select
               fullWidth
               size="small"
-              name="type"
-              value={filters.type}
+              name="userId"
+              value={filters.userId}
               onChange={handleFilterChange}
               displayEmpty
+              disabled={loadingFilterUsers}
             >
-              <MenuItem value="">Todos os Tipos</MenuItem>
-              {TRANSACTION_TYPES.map((type) => (
-                <MenuItem key={type.id} value={type.id}>
-                  {type.name}
+              <MenuItem value="">
+                {loadingFilterUsers ? "Carregando..." : "Todos os Usuários"}
+              </MenuItem>
+              {filterUsers.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.name}
                 </MenuItem>
               ))}
             </Select>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Select
+          <Grid item xs={12} sm={6} md={2.4}>
+            <TextField
               fullWidth
               size="small"
-              name="paymentMethod"
-              value={filters.paymentMethod}
+              type="date"
+              label="Data Início"
+              name="startDate"
+              value={filters.startDate}
               onChange={handleFilterChange}
-              displayEmpty
-            >
-              <MenuItem value="">Todos os Métodos</MenuItem>
-              {PAYMENT_METHODS.map((method) => (
-                <MenuItem key={method.id} value={method.id}>
-                  {method.name}
-                </MenuItem>
-              ))}
-            </Select>
+              InputLabelProps={{ shrink: true }}
+            />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <TextField
+              fullWidth
+              size="small"
+              type="date"
+              label="Data Fim"
+              name="endDate"
+              value={filters.endDate}
+              onChange={handleFilterChange}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
             <Button
               fullWidth
               variant="contained"
