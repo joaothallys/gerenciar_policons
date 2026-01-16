@@ -55,6 +55,9 @@ const FilterCard = styled(Card)(({ theme }) => ({
 
 const TransactionTable = styled(TableContainer)(({ theme }) => ({
   marginBottom: "30px",
+  [theme.breakpoints.down("md")]: {
+    display: "none",
+  },
   "& .MuiTableHead-root": {
     "& .MuiTableCell-head": {
       backgroundColor: "#f5f5f5",
@@ -62,10 +65,6 @@ const TransactionTable = styled(TableContainer)(({ theme }) => ({
       color: "#1a1a1a",
       borderBottom: "2px solid #e0e0e0",
       fontSize: "14px",
-      [theme.breakpoints.down("sm")]: {
-        fontSize: "12px",
-        padding: "8px",
-      },
     },
   },
   "& .MuiTableBody-root": {
@@ -75,12 +74,30 @@ const TransactionTable = styled(TableContainer)(({ theme }) => ({
       },
       "& .MuiTableCell-body": {
         fontSize: "14px",
-        [theme.breakpoints.down("sm")]: {
-          fontSize: "12px",
-          padding: "8px",
-        },
       },
     },
+  },
+}));
+
+const TransactionCard = styled(Card)(({ theme }) => ({
+  padding: "16px",
+  marginBottom: "16px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  borderRadius: "12px",
+  transition: "all 0.3s ease",
+  "&:hover": {
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    transform: "translateY(-2px)",
+  },
+  [theme.breakpoints.up("md")]: {
+    display: "none",
+  },
+}));
+
+const MobileCardsContainer = styled(Box)(({ theme }) => ({
+  display: "none",
+  [theme.breakpoints.down("md")]: {
+    display: "block",
   },
 }));
 
@@ -195,71 +212,72 @@ export default function TransactionsPage() {
   }
 
   // Busca transações do usuário usando token em localStorage
-  useEffect(() => {
-    async function fetchTransactions() {
-      const token = localStorage.getItem("accessToken");
-      if (!token) {
-        enqueueSnackbar("Token não encontrado no cache. Faça login novamente.", { variant: "warning" });
+  const fetchTransactions = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      enqueueSnackbar("Token não encontrado no cache. Faça login novamente.", { variant: "warning" });
+      return;
+    }
+
+    const payload = parseJwt(token);
+    const userId = payload?.user_id || payload?.userId || payload?.usuario_id || payload?.sub || undefined;
+
+    // montar URL com page e per_page dinâmicos
+    const idSegment = userId !== undefined ? userId : "undefined";
+    const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+    const url = `${apiHost}/transactions/user/${idSegment}?page=${page}&per_page=${itemsPerPage}`;
+
+    try {
+      setFetching(true);
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        enqueueSnackbar(`Erro ao buscar transações: ${res.status}`, { variant: "error" });
+        setFetching(false);
         return;
       }
 
-      const payload = parseJwt(token);
-      const userId = payload?.user_id || payload?.userId || payload?.usuario_id || payload?.sub || undefined;
+      const json = await res.json();
 
-      // montar URL com page e per_page dinâmicos
-      const idSegment = userId !== undefined ? userId : "undefined";
-      const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
-      const url = `${apiHost}/transactions/user/${idSegment}?page=${page}&per_page=${itemsPerPage}`;
+      // Mapear estrutura da API para o formato esperado pela tabela
+      const mapped = (json.transactions || []).map((t) => ({
+        id: t.id,
+        userID: t.user_id || t.user?.id || "",
+        userName: t.user?.username || `Usuário ${t.user_id}`,
+        userEmail: t.user?.email || "",
+        typeID: t.type_id || t.type?.id || t.type?.type_id,
+        type_name: (t.type && t.type.name) || t.type_name || "",
+        points: t.points || 0,
+        created_at: t.created_at ? t.created_at.split("T")[0] : (t.created_at || ""),
+        payment_method_id: t.payment_method_id || t.payment_method?.id || 1,
+        payment_method_name: t.payment_method?.name || "",
+        productID: t.product_id || null,
+        productName: t.product?.name || "-",
+        responsibleID: t.responsible_id || null,
+        responsibleName: t.responsible?.username || "-",
+      }));
 
-      try {
-        setFetching(true);
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          enqueueSnackbar(`Erro ao buscar transações: ${res.status}`, { variant: "error" });
-          setFetching(false);
-          return;
-        }
-
-        const json = await res.json();
-
-        // Mapear estrutura da API para o formato esperado pela tabela
-        const mapped = (json.transactions || []).map((t) => ({
-          id: t.id,
-          userID: t.user_id || t.user?.id || "",
-          typeID: t.type_id || t.type?.id || t.type?.type_id,
-          type_name: (t.type && t.type.name) || t.type_name || "",
-          points: t.points || 0,
-          created_at: t.created_at ? t.created_at.split("T")[0] : (t.created_at || ""),
-          payment_method_id: t.payment_method !== undefined ? t.payment_method : (t.payment_method_data?.id || 1),
-          payment_method_name: (t.payment_method_data && t.payment_method_data.name) || t.payment_method_name || "",
-          productID: t.product_id || null,
-        }));
-
-        setTransactions(mapped);
-        setSummary(json.summary || null);
-        setTotalPages(json.total_pages || 1);
-
-        if (mapped.length > 0) {
-          enqueueSnackbar(`Transações carregadas: ${mapped.length}`, { variant: "success" });
-        }
-      } catch (error) {
-        console.error("Erro ao buscar transações:", error);
-        enqueueSnackbar("Erro ao buscar transações. Verifique o servidor.", { variant: "error" });
-      } finally {
-        setFetching(false);
-      }
+      setTransactions(mapped);
+      setSummary(json.summary || null);
+      setTotalPages(json.total_pages || 1);
+    } catch (error) {
+      console.error("Erro ao buscar transações:", error);
+      enqueueSnackbar("Erro ao buscar transações. Verifique o servidor.", { variant: "error" });
+    } finally {
+      setFetching(false);
     }
+  };
 
+  useEffect(() => {
     fetchTransactions();
-  }, [page, enqueueSnackbar]);
+  }, [page]);
 
   // Buscar usuários para o select do modal
   useEffect(() => {
@@ -433,27 +451,13 @@ export default function TransactionsPage() {
           return;
         }
 
-        const updatedTransaction = await res.json();
-        setTransactions((prev) =>
-          prev.map((t) =>
-            t.id === editingId
-              ? {
-                id: updatedTransaction.id,
-                userID: updatedTransaction.user_id,
-                typeID: updatedTransaction.type_id,
-                type_name: updatedTransaction.type_name || (updatedTransaction.type && updatedTransaction.type.name),
-                points: updatedTransaction.points,
-                created_at: updatedTransaction.created_at ? updatedTransaction.created_at.split("T")[0] : "",
-                payment_method_id: updatedTransaction.payment_method !== undefined ? updatedTransaction.payment_method : (updatedTransaction.payment_method_data?.id || 1),
-                payment_method_name: updatedTransaction.payment_method_name || (updatedTransaction.payment_method_data && updatedTransaction.payment_method_data.name),
-                productID: updatedTransaction.product_id,
-              }
-              : t
-          )
-        );
+        await res.json();
         enqueueSnackbar("Transação atualizada com sucesso!", {
           variant: "success",
         });
+
+        // Recarregar transações da API
+        await fetchTransactions();
       } else {
         // Criar transação via API (POST)
         const createData = {
@@ -481,22 +485,11 @@ export default function TransactionsPage() {
           return;
         }
 
-        const newTransaction = await res.json();
-        setTransactions((prev) => [
-          {
-            id: newTransaction.id,
-            userID: newTransaction.user_id,
-            typeID: newTransaction.type_id,
-            type_name: newTransaction.type_name,
-            points: newTransaction.points,
-            created_at: newTransaction.created_at ? newTransaction.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-            payment_method_id: newTransaction.payment_method !== undefined ? newTransaction.payment_method : (newTransaction.payment_method_data?.id || 1),
-            payment_method_name: newTransaction.payment_method_name || (newTransaction.payment_method_data?.name),
-            productID: newTransaction.product_id,
-          },
-          ...prev,
-        ]);
+        await res.json();
         enqueueSnackbar("Transação criada com sucesso!", { variant: "success" });
+
+        // Recarregar transações da API
+        await fetchTransactions();
       }
 
       handleCloseDialog();
@@ -532,7 +525,9 @@ export default function TransactionsPage() {
     if (
       filters.search &&
       !t.userID.toString().includes(filters.search) &&
-      !t.type_name.toLowerCase().includes(filters.search.toLowerCase())
+      !t.userName.toLowerCase().includes(filters.search.toLowerCase()) &&
+      !t.type_name.toLowerCase().includes(filters.search.toLowerCase()) &&
+      !t.productName.toLowerCase().includes(filters.search.toLowerCase())
     ) {
       return false;
     }
@@ -644,11 +639,11 @@ export default function TransactionsPage() {
             <TextField
               fullWidth
               size="small"
-              label="Buscar por Usuário ou Tipo"
+              label="Buscar"
               name="search"
               value={filters.search}
               onChange={handleFilterChange}
-              placeholder="ID do usuário ou tipo..."
+              placeholder="Nome, tipo, produto..."
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -705,14 +700,17 @@ export default function TransactionsPage() {
 
       {/* Tabela de Transações */}
       <SimpleCard title="Histórico de Transações">
+        {/* Tabela para Desktop */}
         <TransactionTable>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell align="center">Usuário</TableCell>
+                <TableCell>Usuário</TableCell>
                 <TableCell>Tipo</TableCell>
-                <TableCell align="right">Pontos</TableCell>
+                <TableCell>Produto</TableCell>
+                <TableCell align="center">Pontos</TableCell>
                 <TableCell align="center">Método de Pagamento</TableCell>
+                <TableCell>Responsável</TableCell>
                 <TableCell align="center">Data</TableCell>
                 <TableCell align="center">Ações</TableCell>
               </TableRow>
@@ -720,16 +718,34 @@ export default function TransactionsPage() {
             <TableBody>
               {fetching ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : filteredTransactions.length > 0 ? (
                 filteredTransactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell align="center">{transaction.userID}</TableCell>
-                    <TableCell>{transaction.type_name}</TableCell>
-                    <TableCell align="right">
+                    <TableCell>
+                      <Box>
+                        <Box sx={{ fontWeight: 600, fontSize: "14px" }}>
+                          {transaction.userName}
+                        </Box>
+                        <Box sx={{ fontSize: "12px", color: "text.secondary" }}>
+                          {transaction.userEmail}
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ fontSize: "13px" }}>
+                        {transaction.type_name}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ fontSize: "13px", color: transaction.productID ? "text.primary" : "text.secondary" }}>
+                        {transaction.productName}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
                       <Chip
                         label={transaction.points.toLocaleString()}
                         color={getPointsColor(transaction.points)}
@@ -737,7 +753,21 @@ export default function TransactionsPage() {
                         sx={{ fontWeight: 600 }}
                       />
                     </TableCell>
-                    <TableCell align="center">{transaction.payment_method_name}</TableCell>
+                    <TableCell align="center">
+                      <Box sx={{ display: "flex", justifyContent: "center" }}>
+                        <Chip
+                          label={transaction.payment_method_name}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontSize: "12px" }}
+                        />
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ fontSize: "13px" }}>
+                        {transaction.responsibleName}
+                      </Box>
+                    </TableCell>
                     <TableCell align="center">{transaction.created_at}</TableCell>
                     <TableCell align="center">
                       <Box sx={{
@@ -788,7 +818,7 @@ export default function TransactionsPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                     Nenhuma transação encontrada
                   </TableCell>
                 </TableRow>
@@ -796,6 +826,122 @@ export default function TransactionsPage() {
             </TableBody>
           </Table>
         </TransactionTable>
+
+        {/* Cards para Mobile */}
+        <MobileCardsContainer>
+          {fetching ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
+              <CircularProgress />
+            </Box>
+          ) : filteredTransactions.length > 0 ? (
+            filteredTransactions.map((transaction) => (
+              <TransactionCard key={transaction.id}>
+                {/* Header do Card */}
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Box sx={{ fontWeight: 700, fontSize: "15px", mb: 0.5, color: "#1a1a1a" }}>
+                      {transaction.userName}
+                    </Box>
+                    <Box sx={{ fontSize: "12px", color: "text.secondary" }}>
+                      {transaction.userEmail}
+                    </Box>
+                  </Box>
+                  <Chip
+                    label={transaction.points.toLocaleString()}
+                    color={getPointsColor(transaction.points)}
+                    size="medium"
+                    sx={{ fontWeight: 700, fontSize: "14px" }}
+                  />
+                </Box>
+
+                {/* Tipo */}
+                <Box sx={{ mb: 1.5, pb: 1.5, borderBottom: "1px solid #f0f0f0" }}>
+                  <Box sx={{ fontSize: "11px", color: "text.secondary", mb: 0.5, textTransform: "uppercase", fontWeight: 600 }}>
+                    Tipo de Transação
+                  </Box>
+                  <Box sx={{ fontSize: "13px", fontWeight: 500 }}>
+                    {transaction.type_name}
+                  </Box>
+                </Box>
+
+                {/* Grid de Informações */}
+                <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                  {/* Produto */}
+                  <Grid item xs={12}>
+                    <Box sx={{ fontSize: "11px", color: "text.secondary", mb: 0.5, textTransform: "uppercase", fontWeight: 600 }}>
+                      Produto
+                    </Box>
+                    <Box sx={{ fontSize: "13px", color: transaction.productID ? "text.primary" : "text.secondary" }}>
+                      {transaction.productName}
+                    </Box>
+                  </Grid>
+
+                  {/* Método de Pagamento */}
+                  <Grid item xs={6}>
+                    <Box sx={{ fontSize: "11px", color: "text.secondary", mb: 0.5, textTransform: "uppercase", fontWeight: 600 }}>
+                      Pagamento
+                    </Box>
+                    <Chip
+                      label={transaction.payment_method_name}
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontSize: "11px", height: "24px" }}
+                    />
+                  </Grid>
+
+                  {/* Data */}
+                  <Grid item xs={6}>
+                    <Box sx={{ fontSize: "11px", color: "text.secondary", mb: 0.5, textTransform: "uppercase", fontWeight: 600 }}>
+                      Data
+                    </Box>
+                    <Box sx={{ fontSize: "13px" }}>
+                      {transaction.created_at}
+                    </Box>
+                  </Grid>
+
+                  {/* Responsável */}
+                  <Grid item xs={12}>
+                    <Box sx={{ fontSize: "11px", color: "text.secondary", mb: 0.5, textTransform: "uppercase", fontWeight: 600 }}>
+                      Responsável
+                    </Box>
+                    <Box sx={{ fontSize: "13px" }}>
+                      {transaction.responsibleName}
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                {/* Botões de Ação */}
+                <Box sx={{ display: "flex", gap: 1, pt: 1.5, borderTop: "1px solid #f0f0f0" }}>
+                  <Button
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EditIcon fontSize="small" />}
+                    onClick={() => handleEdit(transaction)}
+                    sx={{ fontSize: "12px", py: 0.8 }}
+                  >
+                    Editar
+                  </Button>
+                  <Button
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon fontSize="small" />}
+                    onClick={() => handleDelete(transaction.id)}
+                    sx={{ fontSize: "12px", py: 0.8 }}
+                  >
+                    Deletar
+                  </Button>
+                </Box>
+              </TransactionCard>
+            ))
+          ) : (
+            <Box sx={{ textAlign: "center", py: 5, color: "text.secondary" }}>
+              Nenhuma transação encontrada
+            </Box>
+          )}
+        </MobileCardsContainer>
 
         {/* Paginação */}
         {totalPages > 1 && (
