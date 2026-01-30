@@ -152,7 +152,7 @@ export default function ProductsPage() {
             }
 
             const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
-            const url = `${apiHost}/products?page=${page}&per_page=${itemsPerPage}`;
+            const url = `${apiHost}/products?page=${page}&per_page=${itemsPerPage}&include_out_of_stock=true`;
 
             try {
                 setFetching(true);
