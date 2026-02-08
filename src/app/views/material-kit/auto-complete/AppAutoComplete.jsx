@@ -224,7 +224,8 @@ export default function TransactionsPage() {
       return;
     }
 
-    const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+    const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+    const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
 
     // Se tiver filtro de usuário selecionado, usar esse ID específico
     // Se não tiver filtro, usar o placeholder literal "{user_id}" para buscar todos
@@ -297,7 +298,8 @@ export default function TransactionsPage() {
       const token = localStorage.getItem("accessToken");
       if (!token) return;
 
-      const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+      const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+      const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
 
       try {
         setLoadingFilterUsers(true);
@@ -339,7 +341,8 @@ export default function TransactionsPage() {
       const token = localStorage.getItem("accessToken");
       if (!token) return;
 
-      const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+      const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+      const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
 
       try {
         setLoadingUsers(true);
@@ -385,7 +388,8 @@ export default function TransactionsPage() {
       const token = localStorage.getItem("accessToken");
       if (!token) return;
 
-      const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+      const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+      const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
 
       try {
         setLoadingProducts(true);
@@ -476,7 +480,8 @@ export default function TransactionsPage() {
         return;
       }
 
-      const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+      const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+      const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
 
       if (editingId) {
         // Editar transação via API (PUT)
