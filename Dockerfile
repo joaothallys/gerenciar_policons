@@ -26,6 +26,10 @@ FROM nginx:stable-alpine AS production
 # Copiar a configuração personalizada do Nginx
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 
+# Gerar env.js em runtime usando variaveis do ambiente
+COPY docker/nginx/99-env.sh /docker-entrypoint.d/99-env.sh
+RUN chmod +x /docker-entrypoint.d/99-env.sh
+
 # Copiar os arquivos estáticos do build anterior
 COPY --from=build /app/dist /usr/share/nginx/html
 
