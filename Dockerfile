@@ -4,6 +4,10 @@ FROM node:18-alpine AS build
 # Definir diretório de trabalho
 WORKDIR /app
 
+# Vite envs precisam existir na etapa de build
+ARG VITE_REACT_APP_API_HOST
+ENV VITE_REACT_APP_API_HOST=$VITE_REACT_APP_API_HOST
+
 # Copiar package.json e package-lock.json
 COPY package*.json ./
 
