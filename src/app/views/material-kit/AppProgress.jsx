@@ -35,6 +35,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SearchIcon from "@mui/icons-material/Search";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import InventoryIcon from "@mui/icons-material/Inventory";
 import Pagination from "@mui/lab/Pagination";
 
 const Container = styled("div")(({ theme }) => ({
@@ -121,6 +122,8 @@ export default function ProductsPage() {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [summary, setSummary] = useState(null);
     const [totalPages, setTotalPages] = useState(0);
+    const [stockDialogOpen, setStockDialogOpen] = useState(false);
+    const [stockQuantity, setStockQuantity] = useState("");
 
     const itemsPerPage = 10;
 
@@ -165,42 +168,62 @@ export default function ProductsPage() {
                     },
                 });
 
-                if (!res.ok) {
-                    enqueueSnackbar(`Erro ao buscar produtos: ${res.status}`, { variant: "error" });
-                    setFetching(false);
-                    return;
-                }
+        const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+        let url = `${apiHost}/products?page=${page}&per_page=${itemsPerPage}&include_out_of_stock=true`;
 
-                const json = await res.json();
-
-                // Mapear resposta da API
-                const mapped = (json.products || []).map((p) => ({
-                    id: p.id,
-                    name: p.name,
-                    description: p.description,
-                    points: p.points,
-                    type_id: p.type_id,
-                    type_name: p.type_name,
-                    imageURL: p.image_url,
-                }));
-
-                setProducts(mapped);
-                setSummary(json.summary || null);
-                setTotalPages(json.total_pages || 1);
-
-                if (mapped.length > 0) {
-                    enqueueSnackbar(`Produtos carregados: ${mapped.length}`, { variant: "success" });
-                }
-            } catch (error) {
-                console.error("Erro ao buscar produtos:", error);
-                enqueueSnackbar("Erro ao buscar produtos. Verifique o servidor.", { variant: "error" });
-            } finally {
-                setFetching(false);
-            }
+        // Adicionar filtro de tipo se selecionado
+        if (typeFilter) {
+            url += `&type_id=${typeFilter}`;
         }
 
+        try {
+            setFetching(true);
+            const res = await fetch(url, {
+                method: "GET",
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!res.ok) {
+                enqueueSnackbar(`Erro ao buscar produtos: ${res.status}`, { variant: "error" });
+                setFetching(false);
+                return;
+            }
+
+            const json = await res.json();
+
+            // Mapear resposta da API
+            const mapped = (json.products || []).map((p) => ({
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                points: p.points,
+                type_id: p.type_id,
+                type_name: p.type_name,
+                imageURL: p.image_url,
+                stock_quantity: p.stock_quantity || 0,
+            }));
+
+            setProducts(mapped);
+            setSummary(json.summary || null);
+            setTotalPages(json.total_pages || 1);
+
+            if (mapped.length > 0) {
+                enqueueSnackbar(`Produtos carregados: ${mapped.length}`, { variant: "success" });
+            }
+        } catch (error) {
+            console.error("Erro ao buscar produtos:", error);
+            enqueueSnackbar("Erro ao buscar produtos. Verifique o servidor.", { variant: "error" });
+        } finally {
+            setFetching(false);
+        }
+    };
+
+    useEffect(() => {
         fetchProducts();
-    }, [page, enqueueSnackbar]);
+    }, [page, typeFilter]);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -211,10 +234,11 @@ export default function ProductsPage() {
     });
     const [uploadProgress, setUploadProgress] = useState(0);
 
-    // Filtrar produtos (filtros client-side apenas)
+    // Filtrar produtos (filtros client-side apenas para busca)
     React.useEffect(() => {
         let result = products;
 
+        // Filtro de busca por nome/descrição (client-side)
         if (search) {
             result = result.filter(
                 (product) =>
@@ -223,13 +247,9 @@ export default function ProductsPage() {
             );
         }
 
-        if (typeFilter) {
-            result = result.filter((product) => product.type_id == typeFilter);
-        }
-
         // Não fazer slice aqui, pois a paginação já vem da API
         setFilteredProducts(result);
-    }, [search, typeFilter, products]);
+    }, [search, products]);
 
     const handleSearch = (e) => {
         setSearch(e.target.value);
@@ -237,6 +257,74 @@ export default function ProductsPage() {
 
     const handleTypeFilter = (e) => {
         setTypeFilter(e.target.value);
+        setPage(1); // Resetar para a primeira página ao mudar filtro
+    };
+
+    const handleOpenStockDialog = (product) => {
+        setSelectedProduct(product);
+        setStockQuantity("");
+        setStockDialogOpen(true);
+    };
+
+    const handleCloseStockDialog = () => {
+        setStockDialogOpen(false);
+        setSelectedProduct(null);
+        setStockQuantity("");
+    };
+
+    const handleStockSubmit = async () => {
+        if (!stockQuantity || stockQuantity === "0") {
+            enqueueSnackbar("Informe uma quantidade válida", { variant: "warning" });
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const token = localStorage.getItem("accessToken");
+            if (!token) {
+                enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+                setLoading(false);
+                return;
+            }
+
+            const formDataToSend = new FormData();
+            formDataToSend.append("product_id", selectedProduct.id);
+            formDataToSend.append("quantity", stockQuantity);
+
+            const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+            const res = await fetch(`${apiHost}/stocks`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formDataToSend,
+            });
+
+            if (!res.ok) {
+                const error = await res.text();
+                enqueueSnackbar(`Erro ao atualizar estoque: ${res.status}`, { variant: "error" });
+                console.error("Erro:", error);
+                setLoading(false);
+                return;
+            }
+
+            const quantity = parseInt(stockQuantity);
+            const action = quantity > 0 ? "adicionada" : "removida";
+            enqueueSnackbar(
+                `Quantidade ${Math.abs(quantity)} ${action} do estoque com sucesso!`,
+                { variant: "success" }
+            );
+
+            handleCloseStockDialog();
+            // Recarregar produtos após atualização
+            await fetchProducts();
+        } catch (error) {
+            console.error("Erro ao atualizar estoque:", error);
+            enqueueSnackbar("Erro ao atualizar estoque", { variant: "error" });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleOpenDialog = (mode, product = null) => {
@@ -388,24 +476,29 @@ export default function ProductsPage() {
                 setProducts((prev) => [newProduct, ...prev]);
                 enqueueSnackbar("Produto criado com sucesso!", { variant: "success" });
             } else if (dialogMode === "edit" && selectedProduct) {
-                // Preparar dados para PUT
-                const editData = {
-                    name: formData.name,
-                    description: formData.description,
-                    points: parseInt(formData.points),
-                    type_id: parseInt(formData.type_id),
-                    image_url: formData.imageURL, // Usar a URL da imagem (seja preview ou existente)
-                };
+                // Preparar FormData para envio (igual ao POST)
+                const formDataToSend = new FormData();
+                formDataToSend.append("name", formData.name);
+                formDataToSend.append("description", formData.description);
+                formDataToSend.append("points", formData.points);
+                formDataToSend.append("type_id", formData.type_id);
+
+                // Se houver arquivo de imagem novo, adicionar
+                if (formData.imageFile) {
+                    formDataToSend.append("image", formData.imageFile);
+                } else if (formData.imageURL) {
+                    // Se não houver arquivo novo mas houver URL, enviar a URL existente
+                    formDataToSend.append("image_url", formData.imageURL);
+                }
 
                 const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
                 const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
                 const res = await fetch(`${apiHost}/products/${selectedProduct.id}`, {
                     method: "PUT",
                     headers: {
-                        "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify(editData),
+                    body: formDataToSend,
                 });
 
                 if (!res.ok) {
@@ -417,12 +510,17 @@ export default function ProductsPage() {
                 }
 
                 const updatedProduct = await res.json();
+
+                // Garantir que o type_name seja preservado ou reconstruído
+                const typeNameMap = { 1: "Virtual", 2: "Físico" };
+
                 setProducts((prev) =>
                     prev.map((p) =>
                         p.id === selectedProduct.id
                             ? {
                                 ...updatedProduct,
                                 imageURL: updatedProduct.image_url,
+                                type_name: updatedProduct.type_name || typeNameMap[updatedProduct.type_id] || p.type_name,
                             }
                             : p
                     )
@@ -607,13 +705,14 @@ export default function ProductsPage() {
                                     <TableCell>Descrição</TableCell>
                                     <TableCell align="right">Pontos</TableCell>
                                     <TableCell align="center">Tipo</TableCell>
+                                    <TableCell align="center">Estoque</TableCell>
                                     <TableCell align="center">Ações</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {fetching ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                                        <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                                             <CircularProgress />
                                         </TableCell>
                                     </TableRow>
@@ -642,6 +741,23 @@ export default function ProductsPage() {
                                                 />
                                             </TableCell>
                                             <TableCell align="center">
+                                                {product.type_id === 2 ? (
+                                                    <Chip
+                                                        label={`${product.stock_quantity} unid.`}
+                                                        color={product.stock_quantity > 0 ? "success" : "error"}
+                                                        size="small"
+                                                        sx={{ fontWeight: 600 }}
+                                                    />
+                                                ) : (
+                                                    <Chip
+                                                        label="N/A"
+                                                        size="small"
+                                                        variant="outlined"
+                                                        sx={{ color: "text.disabled" }}
+                                                    />
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="center">
                                                 <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
                                                     <Button
                                                         size="small"
@@ -651,6 +767,17 @@ export default function ProductsPage() {
                                                     >
                                                         Editar
                                                     </Button>
+                                                    {product.type_id === 2 && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color="info"
+                                                            startIcon={<InventoryIcon />}
+                                                            onClick={() => handleOpenStockDialog(product)}
+                                                        >
+                                                            Estoque
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         size="small"
                                                         variant="outlined"
@@ -666,7 +793,7 @@ export default function ProductsPage() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                                        <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                                             Nenhum produto encontrado
                                         </TableCell>
                                     </TableRow>
@@ -713,7 +840,7 @@ export default function ProductsPage() {
                                         <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
                                             {product.description}
                                         </Typography>
-                                        <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+                                        <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap" }}>
                                             <Chip
                                                 label={`${product.points.toLocaleString()} pts`}
                                                 color="primary"
@@ -726,6 +853,14 @@ export default function ProductsPage() {
                                                 size="small"
                                                 variant="outlined"
                                             />
+                                            {product.type_id === 2 && (
+                                                <Chip
+                                                    label={`Estoque: ${product.stock_quantity}`}
+                                                    color={product.stock_quantity > 0 ? "success" : "error"}
+                                                    size="small"
+                                                    sx={{ fontWeight: 600 }}
+                                                />
+                                            )}
                                         </Box>
                                         <Box sx={{ display: "flex", gap: 1 }}>
                                             <Button
@@ -737,6 +872,18 @@ export default function ProductsPage() {
                                             >
                                                 Editar
                                             </Button>
+                                            {product.type_id === 2 && (
+                                                <Button
+                                                    fullWidth
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="info"
+                                                    startIcon={<InventoryIcon />}
+                                                    onClick={() => handleOpenStockDialog(product)}
+                                                >
+                                                    Estoque
+                                                </Button>
+                                            )}
                                             <Button
                                                 fullWidth
                                                 size="small"
@@ -909,6 +1056,46 @@ export default function ProductsPage() {
                         disabled={loading}
                     >
                         {loading ? <CircularProgress size={24} /> : "Deletar"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Dialog para Gerenciar Estoque */}
+            <Dialog
+                open={stockDialogOpen}
+                onClose={handleCloseStockDialog}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Gerenciar Estoque</DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                        <AlertTitle>Produto: {selectedProduct?.name}</AlertTitle>
+                        Use números positivos para adicionar e negativos para remover do estoque.
+                    </Alert>
+                    <TextField
+                        fullWidth
+                        label="Quantidade"
+                        type="number"
+                        value={stockQuantity}
+                        onChange={(e) => setStockQuantity(e.target.value)}
+                        placeholder="Ex: 10 ou -5"
+                        helperText="Positivo = adicionar | Negativo = remover"
+                        autoFocus
+                        inputProps={{
+                            step: "1",
+                        }}
+                    />
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={handleCloseStockDialog}>Cancelar</Button>
+                    <Button
+                        onClick={handleStockSubmit}
+                        variant="contained"
+                        color="primary"
+                        disabled={loading || !stockQuantity}
+                    >
+                        {loading ? <CircularProgress size={24} /> : "Atualizar Estoque"}
                     </Button>
                 </DialogActions>
             </Dialog>

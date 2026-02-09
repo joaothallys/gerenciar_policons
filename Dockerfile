@@ -17,8 +17,12 @@ RUN npm install --frozen-lockfile
 # Copiar o restante do código da aplicação
 COPY . .
 
-# Construir a aplicação para produção
-RUN npm run build
+# Copiar e tornar executável o script de build
+COPY docker/build-env.sh /app/build-env.sh
+RUN chmod +x /app/build-env.sh
+
+# Construir a aplicação para produção usando o script que carrega o .env
+RUN /app/build-env.sh
 
 # Etapa 2: Configuração do servidor Nginx para servir os arquivos estáticos
 FROM nginx:stable-alpine AS production
