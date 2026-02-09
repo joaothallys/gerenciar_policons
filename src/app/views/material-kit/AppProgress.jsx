@@ -146,29 +146,15 @@ export default function ProductsPage() {
     }
 
     // Buscar produtos da API
-    useEffect(() => {
-        async function fetchProducts() {
-            const token = localStorage.getItem("accessToken");
-            if (!token) {
-                enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
-                return;
-            }
+    const fetchProducts = async () => {
+        const token = localStorage.getItem("accessToken");
+        if (!token) {
+            enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+            return;
+        }
 
-            const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
-            const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
-            const url = `${apiHost}/products?page=${page}&per_page=${itemsPerPage}&include_out_of_stock=true`;
-
-            try {
-                setFetching(true);
-                const res = await fetch(url, {
-                    method: "GET",
-                    headers: {
-                        accept: "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-        const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+        const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+        const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
         let url = `${apiHost}/products?page=${page}&per_page=${itemsPerPage}&include_out_of_stock=true`;
 
         // Adicionar filtro de tipo se selecionado
