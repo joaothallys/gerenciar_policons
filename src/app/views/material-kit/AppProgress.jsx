@@ -386,23 +386,28 @@ export default function ProductsPage() {
                 setProducts((prev) => [newProduct, ...prev]);
                 enqueueSnackbar("Produto criado com sucesso!", { variant: "success" });
             } else if (dialogMode === "edit" && selectedProduct) {
-                // Preparar dados para PUT
-                const editData = {
-                    name: formData.name,
-                    description: formData.description,
-                    points: parseInt(formData.points),
-                    type_id: parseInt(formData.type_id),
-                    image_url: formData.imageURL, // Usar a URL da imagem (seja preview ou existente)
-                };
+                // Preparar FormData para envio (igual ao POST)
+                const formDataToSend = new FormData();
+                formDataToSend.append("name", formData.name);
+                formDataToSend.append("description", formData.description);
+                formDataToSend.append("points", formData.points);
+                formDataToSend.append("type_id", formData.type_id);
+
+                // Se houver arquivo de imagem novo, adicionar
+                if (formData.imageFile) {
+                    formDataToSend.append("image", formData.imageFile);
+                } else if (formData.imageURL) {
+                    // Se não houver arquivo novo mas houver URL, enviar a URL existente
+                    formDataToSend.append("image_url", formData.imageURL);
+                }
 
                 const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
                 const res = await fetch(`${apiHost}/products/${selectedProduct.id}`, {
                     method: "PUT",
                     headers: {
-                        "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify(editData),
+                    body: formDataToSend,
                 });
 
                 if (!res.ok) {
@@ -414,12 +419,17 @@ export default function ProductsPage() {
                 }
 
                 const updatedProduct = await res.json();
+
+                // Garantir que o type_name seja preservado ou reconstruído
+                const typeNameMap = { 1: "Virtual", 2: "Físico" };
+
                 setProducts((prev) =>
                     prev.map((p) =>
                         p.id === selectedProduct.id
                             ? {
                                 ...updatedProduct,
                                 imageURL: updatedProduct.image_url,
+                                type_name: updatedProduct.type_name || typeNameMap[updatedProduct.type_id] || p.type_name,
                             }
                             : p
                     )
