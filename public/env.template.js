@@ -1,0 +1,3 @@
+window.__ENV__ = {
+    VITE_REACT_APP_API_HOST: "${VITE_REACT_APP_API_HOST}",
+};

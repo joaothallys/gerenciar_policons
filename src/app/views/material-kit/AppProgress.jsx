@@ -153,7 +153,8 @@ export default function ProductsPage() {
             return;
         }
 
-        const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+        const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+        const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
         let url = `${apiHost}/products?page=${page}&per_page=${itemsPerPage}&include_out_of_stock=true`;
 
         // Adicionar filtro de tipo se selecionado
@@ -439,7 +440,8 @@ export default function ProductsPage() {
                     formDataToSend.append("image", formData.imageFile);
                 }
 
-                const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+                const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+                const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
                 const res = await fetch(`${apiHost}/products`, {
                     method: "POST",
                     headers: {
@@ -475,7 +477,8 @@ export default function ProductsPage() {
                     formDataToSend.append("image_url", formData.imageURL);
                 }
 
-                const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+                const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+                const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
                 const res = await fetch(`${apiHost}/products/${selectedProduct.id}`, {
                     method: "PUT",
                     headers: {
@@ -513,7 +516,8 @@ export default function ProductsPage() {
                 });
             } else if (dialogMode === "delete" && selectedProduct) {
                 // Deletar produto via API
-                const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+                const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+                const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
                 const res = await fetch(`${apiHost}/products/${selectedProduct.id}`, {
                     method: "DELETE",
                     headers: {

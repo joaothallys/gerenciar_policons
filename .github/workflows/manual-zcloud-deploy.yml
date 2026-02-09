@@ -1,0 +1,47 @@
+name: deploy zcloud policoins
+on:
+  workflow_dispatch:
+
+jobs:
+  zCloudDeploy:
+    runs-on: gharss
+    container:
+      image: public.ecr.aws/p1e5c6b5/zcloud-cli:latest
+    permissions:
+      deployments: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create GitHub deployment
+        uses: chrnorm/deployment-action@v2
+        id: deployment
+        with:
+          token: '${{ github.token }}'
+          environment-url: https://policoins-front-production-polidigital.svc-us5.zcloud.ws
+          environment: polidigital-policoins-front-production
+
+      - name: Deploy with zCloud
+        run: zcloud deploy --user-token $ZCLOUDTOKEN --env $ZCLOUDENV
+
+      - name: Update deployment status (success)
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: '${{ github.token }}'
+          environment-url: https://policoins-front-production-polidigital.svc-us5.zcloud.ws
+          state: 'success'
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+
+      - name: Update deployment status (failure)
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: '${{ github.token }}'
+          environment-url: https://policoins-front-production-polidigital.svc-us5.zcloud.ws
+          state: 'failure'
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+
+    env:
+      ZCLOUDENV: polidigital-policoins-front-production
+      ZCLOUDTOKEN: ${{ secrets.ZCLOUDTOKEN }}
+      ZCLOUD_NPM_TOKEN: ${{ secrets.ZCLOUD_NPM_TOKEN }}

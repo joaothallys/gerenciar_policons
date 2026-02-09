@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_REACT_APP_API_HOST || "http://localhost:5000";
+const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+const API_URL = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST || "http://localhost:5000";
 
 const authService = {
   login: async (email, password) => {

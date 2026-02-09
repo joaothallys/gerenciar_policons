@@ -6,8 +6,8 @@ services:
     build: 
       context: ./
       dockerfile: Dockerfile
-    env_file:
-      - .env
+      args:
+        VITE_REACT_APP_API_HOST: ${VITE_REACT_APP_API_HOST:-http://localhost:5000}
     ports: 
       - "8080:80"
     networks:
