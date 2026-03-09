@@ -165,16 +165,16 @@ export default function AppButton() {
       const json = await res.json();
       const usersData = Array.isArray(json) ? json : [];
 
-      // Mapear resposta da API para incluir role_name
-      const mapped = usersData.map((u) => ({
-        id: u.id,
-        email: u.email,
-        username: u.username,
-        role_id: u.role_id,
-        role_name: ROLES.find((r) => r.id === u.role_id)?.name || "Desconhecido",
-        created_at: u.created_at ? new Date(u.created_at).toLocaleDateString("pt-BR") : "-",
-        deleted_at: u.deleted_at,
-      }));
+      const mapped = usersData
+        .filter((u) => !u.deleted_at) // Filtrar usuários com deleted_at não nulo
+        .map((u) => ({
+          id: u.id,
+          email: u.email,
+          username: u.username,
+          role_id: u.role_id,
+          role_name: ROLES.find((r) => r.id === u.role_id)?.name || "Desconhecido",
+          created_at: u.created_at ? new Date(u.created_at).toLocaleDateString("pt-BR") : "-",
+        }));
 
       setUsers(mapped);
       enqueueSnackbar(`${mapped.length} usuário(s) carregado(s)`, { variant: "success" });
