@@ -83,55 +83,20 @@ const StatCard = styled(Paper)(({ theme }) => ({
   },
 }));
 
-// Mock data
-const MOCK_USERS = [
-  {
-    id: 1,
-    email: "joao@example.com",
-    username: "joao",
-    role_id: 1,
-    role_name: "Usuário",
-    created_at: "2025-11-10",
-  },
-  {
-    id: 2,
-    email: "maria@example.com",
-    username: "maria",
-    role_id: 2,
-    role_name: "Gerente",
-    created_at: "2025-11-08",
-  },
-  {
-    id: 3,
-    email: "pedro@example.com",
-    username: "pedro",
-    role_id: 1,
-    role_name: "Usuário",
-    created_at: "2025-11-05",
-  },
-  {
-    id: 4,
-    email: "ana@example.com",
-    username: "ana",
-    role_id: 1,
-    role_name: "Usuário",
-    created_at: "2025-11-01",
-  },
-];
-
 const ROLES = [
   { id: 1, name: "Usuário" },
-  { id: 2, name: "Gerente" },
+  { id: 2, name: "Admin" },
 ];
 
 export default function AppButton() {
   const { enqueueSnackbar } = useSnackbar();
-  const [users, setUsers] = useState(MOCK_USERS);
-  const [filteredUsers, setFilteredUsers] = useState(MOCK_USERS);
+  const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState("create"); // create, edit, delete
   const [selectedUser, setSelectedUser] = useState(null);
@@ -150,7 +115,83 @@ export default function AppButton() {
     page * itemsPerPage
   );
 
-  // Filtrar usuários
+  // Obter configuração da API
+  const getApiHost = () => {
+    const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+    return runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST || "http://localhost:5000";
+  };
+
+  const getAuthToken = () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+      return null;
+    }
+    return token;
+  };
+
+  // Buscar usuários da API
+  const fetchUsers = async (searchQuery = null) => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    const apiHost = getApiHost();
+    let url = `${apiHost}/users`;
+
+    // Usar searchQuery se fornecido, senão usar o estado search
+    const queryToUse = searchQuery !== null ? searchQuery : search;
+
+    // Adicionar busca por nome se existir
+    if (queryToUse && queryToUse.trim()) {
+      url += `?name=${encodeURIComponent(queryToUse.trim())}`;
+    }
+
+    try {
+      setFetching(true);
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          Authorization: token, // A API espera o token direto, sem "Bearer"
+        },
+      });
+
+      if (!res.ok) {
+        enqueueSnackbar(`Erro ao buscar usuários: ${res.status}`, { variant: "error" });
+        setFetching(false);
+        return;
+      }
+
+      const json = await res.json();
+      const usersData = Array.isArray(json) ? json : [];
+
+      // Mapear resposta da API para incluir role_name
+      const mapped = usersData.map((u) => ({
+        id: u.id,
+        email: u.email,
+        username: u.username,
+        role_id: u.role_id,
+        role_name: ROLES.find((r) => r.id === u.role_id)?.name || "Desconhecido",
+        created_at: u.created_at ? new Date(u.created_at).toLocaleDateString("pt-BR") : "-",
+        deleted_at: u.deleted_at,
+      }));
+
+      setUsers(mapped);
+      enqueueSnackbar(`${mapped.length} usuário(s) carregado(s)`, { variant: "success" });
+    } catch (error) {
+      enqueueSnackbar("Erro ao buscar usuários", { variant: "error" });
+      console.error("Erro:", error);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  // Carregar usuários ao montar o componente
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  // Filtrar usuários localmente (para roleFilter)
   useEffect(() => {
     let result = users;
 
@@ -172,6 +213,17 @@ export default function AppButton() {
 
   const handleSearch = (e) => {
     setSearch(e.target.value);
+  };
+
+  const handleSearchSubmit = () => {
+    fetchUsers();
+  };
+
+  const handleClearSearch = () => {
+    setSearch("");
+    setRoleFilter("");
+    // Buscar sem filtro
+    fetchUsers("");
   };
 
   const handleRoleFilter = (e) => {
@@ -212,6 +264,9 @@ export default function AppButton() {
   };
 
   const handleSubmit = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+
     setLoading(true);
 
     try {
@@ -230,47 +285,83 @@ export default function AppButton() {
         return;
       }
 
+      const apiHost = getApiHost();
+
       if (dialogMode === "create") {
         // Criar novo usuário
-        // await axios.post("/users", formData);
-        const newUser = {
-          id: Math.max(...users.map((u) => u.id), 0) + 1,
-          ...formData,
-          role_id: parseInt(formData.role_id),
-          role_name: ROLES.find((r) => r.id == formData.role_id)?.name,
-          created_at: new Date().toISOString().split("T")[0],
-        };
-        setUsers((prev) => [newUser, ...prev]);
+        const res = await fetch(`${apiHost}/users`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            username: formData.username,
+            password: formData.password,
+            role_id: parseInt(formData.role_id),
+          }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || `Erro: ${res.status}`);
+        }
+
         enqueueSnackbar("Usuário criado com sucesso!", { variant: "success" });
+        await fetchUsers();
       } else if (dialogMode === "edit" && selectedUser) {
         // Editar usuário
-        // await axios.put(`/users/${selectedUser.id}`, formData);
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.id === selectedUser.id
-              ? {
-                ...u,
-                email: formData.email,
-                username: formData.username,
-                role_id: parseInt(formData.role_id),
-                role_name: ROLES.find((r) => r.id == formData.role_id)?.name,
-              }
-              : u
-          )
-        );
+        const payload = {
+          email: formData.email,
+          username: formData.username,
+          role_id: parseInt(formData.role_id),
+        };
+
+        // Adicionar senha apenas se foi preenchida
+        if (formData.password) {
+          payload.password = formData.password;
+        }
+
+        const res = await fetch(`${apiHost}/users/${selectedUser.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || `Erro: ${res.status}`);
+        }
+
         enqueueSnackbar("Usuário atualizado com sucesso!", {
           variant: "success",
         });
+        await fetchUsers();
       } else if (dialogMode === "delete" && selectedUser) {
         // Deletar usuário
-        // await axios.delete(`/users/${selectedUser.id}`);
-        setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id));
+        const res = await fetch(`${apiHost}/users/${selectedUser.id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: token,
+          },
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || `Erro: ${res.status}`);
+        }
+
         enqueueSnackbar("Usuário deletado com sucesso!", { variant: "success" });
+        await fetchUsers();
       }
 
       handleCloseDialog();
     } catch (error) {
-      enqueueSnackbar("Erro ao processar operação", { variant: "error" });
+      enqueueSnackbar(error.message || "Erro ao processar operação", { variant: "error" });
       console.error("Erro:", error);
     } finally {
       setLoading(false);
@@ -281,15 +372,31 @@ export default function AppButton() {
     const newPassword = prompt("Digite a nova senha:");
     if (!newPassword) return;
 
+    const token = getAuthToken();
+    if (!token) return;
+
+    const apiHost = getApiHost();
     setLoading(true);
     try {
-      // await axios.post(`/users/${userId}/password`, {
-      //   old_password: "current_password",
-      //   new_password: newPassword
-      // });
+      const res = await fetch(`${apiHost}/users/${userId}/password`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token,
+        },
+        body: JSON.stringify({
+          new_password: newPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro: ${res.status}`);
+      }
+
       enqueueSnackbar("Senha alterada com sucesso!", { variant: "success" });
     } catch (error) {
-      enqueueSnackbar("Erro ao alterar senha", { variant: "error" });
+      enqueueSnackbar(error.message || "Erro ao alterar senha", { variant: "error" });
     } finally {
       setLoading(false);
     }
@@ -313,21 +420,47 @@ export default function AppButton() {
 
       {/* Filtros */}
       <FilterCard>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={5}>
             <TextField
               fullWidth
               size="small"
-              label="Buscar por Email ou Username"
+              label="Buscar por Nome (pressione Enter)"
               value={search}
               onChange={handleSearch}
-              placeholder="Digite o email ou nome de usuário..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearchSubmit();
+                }
+              }}
+              placeholder="Digite o nome para buscar..."
               InputProps={{
                 startAdornment: <SearchIcon sx={{ mr: 1, color: "action.active" }} />,
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Button
+                fullWidth
+                variant="contained"
+                color="primary"
+                onClick={handleSearchSubmit}
+                disabled={fetching}
+              >
+                Buscar
+              </Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={handleClearSearch}
+                disabled={fetching}
+              >
+                Limpar
+              </Button>
+            </Box>
+          </Grid>
+          <Grid item xs={12} sm={3}>
             <Select
               fullWidth
               size="small"
@@ -364,8 +497,7 @@ export default function AppButton() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell align="center">ID</TableCell>
-                <TableCell>Email</TableCell>
+                <TableCell sx={{ pl: 3 }}>Email</TableCell>
                 <TableCell>Username</TableCell>
                 <TableCell align="center">Papel</TableCell>
                 <TableCell align="center">Data de Criação</TableCell>
@@ -373,19 +505,16 @@ export default function AppButton() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
+              {fetching ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : paginatedUsers.length > 0 ? (
                 paginatedUsers.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>
-                      #{user.id}
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell sx={{ pl: 3 }}>{user.email}</TableCell>
                     <TableCell>{user.username}</TableCell>
                     <TableCell align="center">
                       <Chip
@@ -421,7 +550,7 @@ export default function AppButton() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
                     Nenhum usuário encontrado
                   </TableCell>
                 </TableRow>
