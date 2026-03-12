@@ -26,10 +26,13 @@ import {
     Alert,
     AlertTitle,
     LinearProgress,
+    FormControl,
+    InputLabel,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { useSnackbar } from "notistack";
+import { interpretApiError } from "app/utils/apiErrorHandler";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -124,6 +127,7 @@ export default function ProductsPage() {
     const [totalPages, setTotalPages] = useState(0);
     const [stockDialogOpen, setStockDialogOpen] = useState(false);
     const [stockQuantity, setStockQuantity] = useState("");
+    const [showValidation, setShowValidation] = useState(false);
 
     const itemsPerPage = 10;
 
@@ -316,6 +320,7 @@ export default function ProductsPage() {
     const handleOpenDialog = (mode, product = null) => {
         setDialogMode(mode);
         setSelectedProduct(product);
+        setShowValidation(false); // Resetar validação ao abrir dialog
 
         if (mode === "create") {
             setFormData({
@@ -352,11 +357,13 @@ export default function ProductsPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Validar tipo de arquivo
-        if (!file.type.startsWith("image/")) {
-            enqueueSnackbar("Por favor, selecione um arquivo de imagem válido", {
+        // Validar tipo de arquivo - APENAS PNG
+        if (file.type !== "image/png") {
+            enqueueSnackbar("Apenas imagens PNG (.png) são aceitas", {
                 variant: "warning",
             });
+            // Limpar o input
+            e.target.value = "";
             return;
         }
 
@@ -365,6 +372,8 @@ export default function ProductsPage() {
             enqueueSnackbar("A imagem não pode exceder 5MB", {
                 variant: "warning",
             });
+            // Limpar o input
+            e.target.value = "";
             return;
         }
 
@@ -401,19 +410,38 @@ export default function ProductsPage() {
 
     const handleSubmit = async () => {
         setLoading(true);
+        setShowValidation(true); // Ativar exibição de erros de validação
 
         try {
-            // Validações
-            if (!formData.name || !formData.description || !formData.points) {
-                enqueueSnackbar("Preencha todos os campos obrigatórios", {
-                    variant: "warning",
-                });
+            // Validações de campos obrigatórios
+            const missingFields = [];
+
+            if (!formData.name || formData.name.trim() === "") {
+                missingFields.push("Nome do Produto");
+            }
+            if (!formData.description || formData.description.trim() === "") {
+                missingFields.push("Descrição");
+            }
+            if (!formData.points || formData.points === "") {
+                missingFields.push("Pontos");
+            }
+            if (!formData.type_id) {
+                missingFields.push("Tipo do Produto");
+            }
+
+            if (missingFields.length > 0) {
+                const fieldsList = missingFields.join(", ");
+                enqueueSnackbar(
+                    `Preencha os campos obrigatórios: ${fieldsList}`,
+                    { variant: "warning" }
+                );
                 setLoading(false);
                 return;
             }
 
+            // Validação de pontos
             if (isNaN(formData.points) || parseInt(formData.points) <= 0) {
-                enqueueSnackbar("Pontos deve ser um número positivo", {
+                enqueueSnackbar("O campo Pontos deve ser um número positivo maior que zero", {
                     variant: "warning",
                 });
                 setLoading(false);
@@ -438,6 +466,9 @@ export default function ProductsPage() {
                 // Se houver arquivo de imagem, adicionar
                 if (formData.imageFile) {
                     formDataToSend.append("image", formData.imageFile);
+                } else if (formData.imageURL && !formData.imageURL.startsWith('data:')) {
+                    // Se não houver arquivo mas houver URL válida (não base64), enviar a URL
+                    formDataToSend.append("imageURL", formData.imageURL);
                 }
 
                 const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
@@ -450,17 +481,42 @@ export default function ProductsPage() {
                     body: formDataToSend,
                 });
 
-                if (!res.ok) {
-                    const error = await res.text();
-                    enqueueSnackbar(`Erro ao criar produto: ${res.status}`, { variant: "error" });
-                    console.error("Erro:", error);
+                // Verificar códigos de sucesso (200, 201)
+                if (res.status === 200 || res.status === 201) {
+                    const newProduct = await res.json();
+
+                    // Mapear resposta para formato interno
+                    const mappedProduct = {
+                        id: newProduct.id,
+                        name: newProduct.name,
+                        description: newProduct.description,
+                        points: newProduct.points,
+                        type_id: newProduct.type_id,
+                        type_name: newProduct.type_name || (newProduct.type_id === 1 ? "Virtual" : "Físico"),
+                        imageURL: newProduct.image_url,
+                        stock_quantity: newProduct.stock_quantity || 0,
+                    };
+
+                    setProducts((prev) => [mappedProduct, ...prev]);
+                    enqueueSnackbar("Produto criado com sucesso!", { variant: "success" });
+                } else {
+                    // Tratar erros específicos
+                    let errorMessage = "";
+                    try {
+                        const errorData = await res.json();
+                        errorMessage = errorData.message || errorData.error || "";
+                    } catch (e) {
+                        errorMessage = await res.text();
+                    }
+
+                    // Interpretar e exibir erro amigável
+                    const friendlyMessage = interpretApiError(errorMessage, res.status, "product");
+                    enqueueSnackbar(friendlyMessage, { variant: "error" });
+
+                    console.error(`Erro ao criar produto (${res.status}):`, errorMessage);
                     setLoading(false);
                     return;
                 }
-
-                const newProduct = await res.json();
-                setProducts((prev) => [newProduct, ...prev]);
-                enqueueSnackbar("Produto criado com sucesso!", { variant: "success" });
             } else if (dialogMode === "edit" && selectedProduct) {
                 // Preparar FormData para envio (igual ao POST)
                 const formDataToSend = new FormData();
@@ -472,9 +528,9 @@ export default function ProductsPage() {
                 // Se houver arquivo de imagem novo, adicionar
                 if (formData.imageFile) {
                     formDataToSend.append("image", formData.imageFile);
-                } else if (formData.imageURL) {
+                } else if (formData.imageURL && !formData.imageURL.startsWith('data:')) {
                     // Se não houver arquivo novo mas houver URL, enviar a URL existente
-                    formDataToSend.append("image_url", formData.imageURL);
+                    formDataToSend.append("imageURL", formData.imageURL);
                 }
 
                 const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
@@ -487,33 +543,46 @@ export default function ProductsPage() {
                     body: formDataToSend,
                 });
 
-                if (!res.ok) {
-                    const error = await res.text();
-                    enqueueSnackbar(`Erro ao atualizar produto: ${res.status}`, { variant: "error" });
-                    console.error("Erro:", error);
+                // Verificar códigos de sucesso (200, 201)
+                if (res.status === 200 || res.status === 201) {
+                    const updatedProduct = await res.json();
+
+                    // Garantir que o type_name seja preservado ou reconstruído
+                    const typeNameMap = { 1: "Virtual", 2: "Físico" };
+
+                    setProducts((prev) =>
+                        prev.map((p) =>
+                            p.id === selectedProduct.id
+                                ? {
+                                    ...updatedProduct,
+                                    imageURL: updatedProduct.image_url,
+                                    type_name: updatedProduct.type_name || typeNameMap[updatedProduct.type_id] || p.type_name,
+                                    stock_quantity: updatedProduct.stock_quantity || p.stock_quantity || 0,
+                                }
+                                : p
+                        )
+                    );
+                    enqueueSnackbar("Produto atualizado com sucesso!", {
+                        variant: "success",
+                    });
+                } else {
+                    // Tratar erros específicos
+                    let errorMessage = "";
+                    try {
+                        const errorData = await res.json();
+                        errorMessage = errorData.message || errorData.error || "";
+                    } catch (e) {
+                        errorMessage = await res.text();
+                    }
+
+                    // Interpretar e exibir erro amigável
+                    const friendlyMessage = interpretApiError(errorMessage, res.status, "product");
+                    enqueueSnackbar(friendlyMessage, { variant: "error" });
+
+                    console.error(`Erro ao atualizar produto (${res.status}):`, errorMessage);
                     setLoading(false);
                     return;
                 }
-
-                const updatedProduct = await res.json();
-
-                // Garantir que o type_name seja preservado ou reconstruído
-                const typeNameMap = { 1: "Virtual", 2: "Físico" };
-
-                setProducts((prev) =>
-                    prev.map((p) =>
-                        p.id === selectedProduct.id
-                            ? {
-                                ...updatedProduct,
-                                imageURL: updatedProduct.image_url,
-                                type_name: updatedProduct.type_name || typeNameMap[updatedProduct.type_id] || p.type_name,
-                            }
-                            : p
-                    )
-                );
-                enqueueSnackbar("Produto atualizado com sucesso!", {
-                    variant: "success",
-                });
             } else if (dialogMode === "delete" && selectedProduct) {
                 // Deletar produto via API
                 const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
@@ -525,16 +594,35 @@ export default function ProductsPage() {
                     },
                 });
 
-                if (!res.ok) {
-                    const error = await res.text();
-                    enqueueSnackbar(`Erro ao deletar produto: ${res.status}`, { variant: "error" });
-                    console.error("Erro:", error);
+                // Verificar códigos de sucesso (200, 201, 204)
+                if (res.status === 200 || res.status === 201 || res.status === 204) {
+                    setProducts((prev) => prev.filter((p) => p.id !== selectedProduct.id));
+                    enqueueSnackbar("Produto deletado com sucesso!", { variant: "success" });
+                } else {
+                    // Tratar erros específicos
+                    let errorMessage = "";
+                    try {
+                        const errorData = await res.json();
+                        errorMessage = errorData.message || errorData.error || "";
+                    } catch (e) {
+                        errorMessage = await res.text();
+                    }
+
+                    // Interpretar erro com contexto de deleção
+                    let friendlyMessage;
+                    if (res.status === 404) {
+                        friendlyMessage = "Produto não encontrado. Pode já ter sido deletado.";
+                    } else if (res.status === 409 || errorMessage.includes("foreign key") || errorMessage.includes("constraint")) {
+                        friendlyMessage = "Não é possível deletar: produto possui vínculos ativos (ex: pedidos, trocas).";
+                    } else {
+                        friendlyMessage = interpretApiError(errorMessage, res.status, "delete");
+                    }
+
+                    enqueueSnackbar(friendlyMessage, { variant: "error" });
+                    console.error(`Erro ao deletar produto (${res.status}):`, errorMessage);
                     setLoading(false);
                     return;
                 }
-
-                setProducts((prev) => prev.filter((p) => p.id !== selectedProduct.id));
-                enqueueSnackbar("Produto deletado com sucesso!", { variant: "success" });
             }
 
             handleCloseDialog();
@@ -912,6 +1000,12 @@ export default function ProductsPage() {
                     {dialogMode === "create" ? "Novo Produto" : "Editar Produto"}
                 </DialogTitle>
                 <DialogContent sx={{ pt: 3 }}>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        <AlertTitle>Campos obrigatórios</AlertTitle>
+                        Os campos marcados com * são obrigatórios: Nome, Descrição, Pontos e Tipo.
+                        <br />
+                        <strong>Imagem:</strong> Apenas arquivos PNG (.png) são aceitos, máximo 5MB.
+                    </Alert>
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <TextField
                             fullWidth
@@ -920,6 +1014,8 @@ export default function ProductsPage() {
                             value={formData.name}
                             onChange={handleFormChange}
                             required
+                            helperText={showValidation && !formData.name ? "Campo obrigatório" : ""}
+                            error={showValidation && !formData.name}
                         />
                         <TextField
                             fullWidth
@@ -930,6 +1026,8 @@ export default function ProductsPage() {
                             multiline
                             rows={3}
                             required
+                            helperText={showValidation && !formData.description ? "Campo obrigatório" : ""}
+                            error={showValidation && !formData.description}
                         />
                         <TextField
                             fullWidth
@@ -939,23 +1037,38 @@ export default function ProductsPage() {
                             value={formData.points}
                             onChange={handleFormChange}
                             required
+                            helperText={
+                                showValidation && (!formData.points || parseInt(formData.points) <= 0)
+                                    ? "Campo obrigatório - Valor deve ser maior que 0"
+                                    : "Mínimo: 1 ponto"
+                            }
+                            error={showValidation && (!formData.points || parseInt(formData.points) <= 0)}
                             inputProps={{ min: "1" }}
                         />
-                        <Select
-                            fullWidth
-                            name="type_id"
-                            value={formData.type_id}
-                            onChange={handleFormChange}
-                        >
-                            {PRODUCT_TYPES.map((type) => (
-                                <MenuItem key={type.id} value={type.id}>
-                                    {type.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        <FormControl fullWidth required error={showValidation && !formData.type_id}>
+                            <InputLabel id="type-select-label">Tipo do Produto *</InputLabel>
+                            <Select
+                                labelId="type-select-label"
+                                name="type_id"
+                                value={formData.type_id}
+                                onChange={handleFormChange}
+                                label="Tipo do Produto *"
+                            >
+                                {PRODUCT_TYPES.map((type) => (
+                                    <MenuItem key={type.id} value={type.id}>
+                                        {type.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                            {showValidation && !formData.type_id && (
+                                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                                    Campo obrigatório
+                                </Typography>
+                            )}
+                        </FormControl>
                         <Box>
                             <input
-                                accept="image/*"
+                                accept="image/png"
                                 style={{ display: "none" }}
                                 id="image-upload-input"
                                 type="file"
@@ -969,9 +1082,16 @@ export default function ProductsPage() {
                                     startIcon={<CloudUploadIcon />}
                                     sx={{ mb: 1 }}
                                 >
-                                    Selecionar Imagem
+                                    Selecionar Imagem (PNG)
                                 </Button>
                             </label>
+                            <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                sx={{ display: "block", mb: 2, textAlign: "center" }}
+                            >
+                                Apenas arquivos PNG • Máximo 5MB
+                            </Typography>
                             {uploadProgress > 0 && uploadProgress < 100 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Typography variant="caption" sx={{ mb: 1, display: "block" }}>

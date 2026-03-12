@@ -24,6 +24,7 @@ import {
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
+import { interpretApiError } from "app/utils/apiErrorHandler";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -251,8 +252,17 @@ export default function TransactionsPage() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        enqueueSnackbar(`Erro ao buscar transações: ${res.status}`, { variant: "error" });
+        let errorMessage = "";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.message || errorData.error || "";
+        } catch (e) {
+          errorMessage = await res.text();
+        }
+
+        const friendlyMessage = interpretApiError(errorMessage, res.status, "transaction");
+        enqueueSnackbar(friendlyMessage, { variant: "error" });
+        console.error(`Erro ao buscar transações (${res.status}):`, errorMessage);
         setFetching(false);
         return;
       }
@@ -312,7 +322,17 @@ export default function TransactionsPage() {
         });
 
         if (!res.ok) {
-          console.error(`Erro ao buscar usuários para filtro: ${res.status}`);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "user");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao buscar usuários para filtro (${res.status}):`, errorMessage);
           setLoadingFilterUsers(false);
           return;
         }
@@ -355,7 +375,17 @@ export default function TransactionsPage() {
         });
 
         if (!res.ok) {
-          console.error(`Erro ao buscar usuários: ${res.status}`);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "user");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao buscar usuários (${res.status}):`, errorMessage);
           setLoadingUsers(false);
           return;
         }
@@ -402,7 +432,17 @@ export default function TransactionsPage() {
         });
 
         if (!res.ok) {
-          console.error(`Erro ao buscar produtos: ${res.status}`);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "product");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao buscar produtos (${res.status}):`, errorMessage);
           setLoadingProducts(false);
           return;
         }
@@ -503,9 +543,17 @@ export default function TransactionsPage() {
         });
 
         if (!res.ok) {
-          const error = await res.text();
-          enqueueSnackbar(`Erro ao atualizar transação: ${res.status}`, { variant: "error" });
-          console.error("Erro:", error);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "transaction");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao atualizar transação (${res.status}):`, errorMessage);
           setLoading(false);
           return;
         }
@@ -537,9 +585,17 @@ export default function TransactionsPage() {
         });
 
         if (!res.ok) {
-          const error = await res.text();
-          enqueueSnackbar(`Erro ao criar transação: ${res.status}`, { variant: "error" });
-          console.error("Erro:", error);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "transaction");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao criar transação (${res.status}):`, errorMessage);
           setLoading(false);
           return;
         }
