@@ -1085,9 +1085,9 @@ export default function ProductsPage() {
                                     Selecionar Imagem (PNG)
                                 </Button>
                             </label>
-                            <Typography 
-                                variant="caption" 
-                                color="textSecondary" 
+                            <Typography
+                                variant="caption"
+                                color="textSecondary"
                                 sx={{ display: "block", mb: 2, textAlign: "center" }}
                             >
                                 Apenas arquivos PNG • Máximo 5MB
