@@ -24,6 +24,7 @@ import {
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { useSnackbar } from "notistack";
+import { interpretApiError } from "app/utils/apiErrorHandler";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -304,8 +305,19 @@ export default function AppButton() {
         });
 
         if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || `Erro: ${res.status}`);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "user");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao criar usuário (${res.status}):`, errorMessage);
+          setLoading(false);
+          return;
         }
 
         enqueueSnackbar("Usuário criado com sucesso!", { variant: "success" });
@@ -333,8 +345,19 @@ export default function AppButton() {
         });
 
         if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || `Erro: ${res.status}`);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "user");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao atualizar usuário (${res.status}):`, errorMessage);
+          setLoading(false);
+          return;
         }
 
         enqueueSnackbar("Usuário atualizado com sucesso!", {
@@ -351,8 +374,19 @@ export default function AppButton() {
         });
 
         if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || `Erro: ${res.status}`);
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorData.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          const friendlyMessage = interpretApiError(errorMessage, res.status, "delete");
+          enqueueSnackbar(friendlyMessage, { variant: "error" });
+          console.error(`Erro ao deletar usuário (${res.status}):`, errorMessage);
+          setLoading(false);
+          return;
         }
 
         enqueueSnackbar("Usuário deletado com sucesso!", { variant: "success" });
@@ -361,8 +395,10 @@ export default function AppButton() {
 
       handleCloseDialog();
     } catch (error) {
-      enqueueSnackbar(error.message || "Erro ao processar operação", { variant: "error" });
-      console.error("Erro:", error);
+      // Capturar erros não tratados
+      const errorMessage = error.message || "Erro inesperado ao processar operação";
+      enqueueSnackbar(errorMessage, { variant: "error" });
+      console.error("Erro não tratado:", error);
     } finally {
       setLoading(false);
     }
@@ -390,13 +426,26 @@ export default function AppButton() {
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Erro: ${res.status}`);
+        let errorMessage = "";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.message || errorData.error || "";
+        } catch (e) {
+          errorMessage = await res.text();
+        }
+
+        const friendlyMessage = interpretApiError(errorMessage, res.status, "user");
+        enqueueSnackbar(friendlyMessage, { variant: "error" });
+        console.error(`Erro ao alterar senha (${res.status}):`, errorMessage);
+        setLoading(false);
+        return;
       }
 
       enqueueSnackbar("Senha alterada com sucesso!", { variant: "success" });
     } catch (error) {
-      enqueueSnackbar(error.message || "Erro ao alterar senha", { variant: "error" });
+      const errorMessage = error.message || "Erro inesperado ao alterar senha";
+      enqueueSnackbar(errorMessage, { variant: "error" });
+      console.error("Erro não tratado:", error);
     } finally {
       setLoading(false);
     }
