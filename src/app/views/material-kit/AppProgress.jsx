@@ -31,8 +31,8 @@ import {
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
-import { useSnackbar } from "notistack";
-import { interpretApiError } from "app/utils/apiErrorHandler";
+import { extractApiResponsePayload, interpretApiError } from "app/utils/apiErrorHandler";
+import { showErrorPopup, showSuccessDetailsPopup, showSuccessPopup, showWarningPopup } from "app/utils/popup";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -111,7 +111,6 @@ const PRODUCT_TYPES = [
 ];
 
 export default function ProductsPage() {
-    const { enqueueSnackbar } = useSnackbar();
     const [products, setProducts] = useState([]);
     const [filteredProducts, setFilteredProducts] = useState([]);
     const [search, setSearch] = useState("");
@@ -153,7 +152,7 @@ export default function ProductsPage() {
     const fetchProducts = async () => {
         const token = localStorage.getItem("accessToken");
         if (!token) {
-            enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+            showWarningPopup("Token não encontrado. Faça login novamente.");
             return;
         }
 
@@ -177,7 +176,10 @@ export default function ProductsPage() {
             });
 
             if (!res.ok) {
-                enqueueSnackbar(`Erro ao buscar produtos: ${res.status}`, { variant: "error" });
+                const responsePayload = await extractApiResponsePayload(res);
+                const errorMessage = responsePayload.message || responsePayload.raw;
+                const friendlyMessage = interpretApiError(errorMessage, res.status, "product");
+                showErrorPopup(friendlyMessage, "Falha ao carregar produtos", responsePayload.raw);
                 setFetching(false);
                 return;
             }
@@ -199,13 +201,9 @@ export default function ProductsPage() {
             setProducts(mapped);
             setSummary(json.summary || null);
             setTotalPages(json.total_pages || 1);
-
-            if (mapped.length > 0) {
-                enqueueSnackbar(`Produtos carregados: ${mapped.length}`, { variant: "success" });
-            }
         } catch (error) {
             console.error("Erro ao buscar produtos:", error);
-            enqueueSnackbar("Erro ao buscar produtos. Verifique o servidor.", { variant: "error" });
+            showErrorPopup("Erro ao buscar produtos. Verifique o servidor.", "Falha ao carregar produtos");
         } finally {
             setFetching(false);
         }
@@ -264,7 +262,7 @@ export default function ProductsPage() {
 
     const handleStockSubmit = async () => {
         if (!stockQuantity || stockQuantity === "0") {
-            enqueueSnackbar("Informe uma quantidade válida", { variant: "warning" });
+            showWarningPopup("Informe uma quantidade válida");
             return;
         }
 
@@ -273,7 +271,7 @@ export default function ProductsPage() {
         try {
             const token = localStorage.getItem("accessToken");
             if (!token) {
-                enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+                showWarningPopup("Token não encontrado. Faça login novamente.");
                 setLoading(false);
                 return;
             }
@@ -292,18 +290,23 @@ export default function ProductsPage() {
             });
 
             if (!res.ok) {
-                const error = await res.text();
-                enqueueSnackbar(`Erro ao atualizar estoque: ${res.status}`, { variant: "error" });
-                console.error("Erro:", error);
+                const responsePayload = await extractApiResponsePayload(res);
+                const error = responsePayload.message || responsePayload.raw;
+                const friendlyMessage = interpretApiError(error, res.status, "stock");
+                showErrorPopup(friendlyMessage, "Falha ao atualizar estoque", responsePayload.raw);
+                console.error("Erro:", responsePayload.raw || error);
                 setLoading(false);
                 return;
             }
 
+            const responsePayload = await extractApiResponsePayload(res.clone());
+
             const quantity = parseInt(stockQuantity);
             const action = quantity > 0 ? "adicionada" : "removida";
-            enqueueSnackbar(
-                `Quantidade ${Math.abs(quantity)} ${action} do estoque com sucesso!`,
-                { variant: "success" }
+            showSuccessDetailsPopup(
+                responsePayload.message || `Quantidade ${Math.abs(quantity)} ${action} do estoque com sucesso!`,
+                "Estoque atualizado",
+                responsePayload.raw
             );
 
             handleCloseStockDialog();
@@ -311,7 +314,7 @@ export default function ProductsPage() {
             await fetchProducts();
         } catch (error) {
             console.error("Erro ao atualizar estoque:", error);
-            enqueueSnackbar("Erro ao atualizar estoque", { variant: "error" });
+            showErrorPopup("Erro ao atualizar estoque", "Falha ao atualizar estoque");
         } finally {
             setLoading(false);
         }
@@ -359,9 +362,7 @@ export default function ProductsPage() {
 
         // Validar tipo de arquivo - APENAS PNG
         if (file.type !== "image/png") {
-            enqueueSnackbar("Apenas imagens PNG (.png) são aceitas", {
-                variant: "warning",
-            });
+            showWarningPopup("Apenas imagens PNG (.png) são aceitas");
             // Limpar o input
             e.target.value = "";
             return;
@@ -369,9 +370,7 @@ export default function ProductsPage() {
 
         // Validar tamanho (máx 5MB)
         if (file.size > 5 * 1024 * 1024) {
-            enqueueSnackbar("A imagem não pode exceder 5MB", {
-                variant: "warning",
-            });
+            showWarningPopup("A imagem não pode exceder 5MB");
             // Limpar o input
             e.target.value = "";
             return;
@@ -410,9 +409,64 @@ export default function ProductsPage() {
 
     const handleSubmit = async () => {
         setLoading(true);
-        setShowValidation(true); // Ativar exibição de erros de validação
 
         try {
+            const token = localStorage.getItem("accessToken");
+            if (!token) {
+                showWarningPopup("Token não encontrado. Faça login novamente.");
+                setLoading(false);
+                return;
+            }
+
+            if (dialogMode === "delete") {
+                if (!selectedProduct) {
+                    showWarningPopup("Produto não encontrado para exclusão.");
+                    setLoading(false);
+                    return;
+                }
+
+                const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+                const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
+                const res = await fetch(`${apiHost}/products/${selectedProduct.id}`, {
+                    method: "DELETE",
+                    headers: {
+                        accept: "application/json",
+                        Authorization: token,
+                    },
+                });
+
+                const responsePayload = await extractApiResponsePayload(res.clone());
+
+                if (res.status === 200 || res.status === 201 || res.status === 204) {
+                    setProducts((prev) => prev.filter((p) => p.id !== selectedProduct.id));
+                    showSuccessDetailsPopup(
+                        responsePayload.message || "Produto deletado com sucesso!",
+                        "Produto removido",
+                        responsePayload.raw
+                    );
+                    handleCloseDialog();
+                    return;
+                }
+
+                const errorMessage = responsePayload.message || responsePayload.raw;
+
+                let friendlyMessage;
+                if (res.status === 404) {
+                    friendlyMessage = "Produto não encontrado. Pode já ter sido deletado.";
+                } else if (res.status === 409 || errorMessage.includes("foreign key") || errorMessage.includes("constraint")) {
+                    friendlyMessage = "Não é possível deletar: produto possui vínculos ativos (ex: pedidos, trocas).";
+                } else {
+                    friendlyMessage = interpretApiError(errorMessage, res.status, "delete");
+                }
+
+                showErrorPopup(friendlyMessage, "Falha ao deletar produto", responsePayload.raw);
+                console.error(`Erro ao deletar produto (${res.status}):`, errorMessage);
+                setLoading(false);
+                return;
+            }
+
+            setShowValidation(true); // Ativar exibição de erros de validação
+
             // Validações de campos obrigatórios
             const missingFields = [];
 
@@ -431,26 +485,14 @@ export default function ProductsPage() {
 
             if (missingFields.length > 0) {
                 const fieldsList = missingFields.join(", ");
-                enqueueSnackbar(
-                    `Preencha os campos obrigatórios: ${fieldsList}`,
-                    { variant: "warning" }
-                );
+                showWarningPopup(`Preencha os campos obrigatórios: ${fieldsList}`);
                 setLoading(false);
                 return;
             }
 
             // Validação de pontos
             if (isNaN(formData.points) || parseInt(formData.points) <= 0) {
-                enqueueSnackbar("O campo Pontos deve ser um número positivo maior que zero", {
-                    variant: "warning",
-                });
-                setLoading(false);
-                return;
-            }
-
-            const token = localStorage.getItem("accessToken");
-            if (!token) {
-                enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+                showWarningPopup("O campo Pontos deve ser um número positivo maior que zero");
                 setLoading(false);
                 return;
             }
@@ -481,37 +523,18 @@ export default function ProductsPage() {
                     body: formDataToSend,
                 });
 
+                const responsePayload = await extractApiResponsePayload(res.clone());
+
                 // Verificar códigos de sucesso (200, 201)
                 if (res.status === 200 || res.status === 201) {
-                    const newProduct = await res.json();
-
-                    // Mapear resposta para formato interno
-                    const mappedProduct = {
-                        id: newProduct.id,
-                        name: newProduct.name,
-                        description: newProduct.description,
-                        points: newProduct.points,
-                        type_id: newProduct.type_id,
-                        type_name: newProduct.type_name || (newProduct.type_id === 1 ? "Virtual" : "Físico"),
-                        imageURL: newProduct.image_url,
-                        stock_quantity: newProduct.stock_quantity || 0,
-                    };
-
-                    setProducts((prev) => [mappedProduct, ...prev]);
-                    enqueueSnackbar("Produto criado com sucesso!", { variant: "success" });
+                    showSuccessPopup("Produto criado com sucesso!", "Produto criado");
+                    await fetchProducts();
                 } else {
-                    // Tratar erros específicos
-                    let errorMessage = "";
-                    try {
-                        const errorData = await res.json();
-                        errorMessage = errorData.message || errorData.error || "";
-                    } catch (e) {
-                        errorMessage = await res.text();
-                    }
+                    const errorMessage = responsePayload.message || responsePayload.raw;
 
                     // Interpretar e exibir erro amigável
                     const friendlyMessage = interpretApiError(errorMessage, res.status, "product");
-                    enqueueSnackbar(friendlyMessage, { variant: "error" });
+                    showErrorPopup(friendlyMessage, "Falha ao criar produto", responsePayload.raw);
 
                     console.error(`Erro ao criar produto (${res.status}):`, errorMessage);
                     setLoading(false);
@@ -543,9 +566,11 @@ export default function ProductsPage() {
                     body: formDataToSend,
                 });
 
+                const responsePayload = await extractApiResponsePayload(res.clone());
+
                 // Verificar códigos de sucesso (200, 201)
                 if (res.status === 200 || res.status === 201) {
-                    const updatedProduct = await res.json();
+                    const updatedProduct = responsePayload.data || {};
 
                     // Garantir que o type_name seja preservado ou reconstruído
                     const typeNameMap = { 1: "Virtual", 2: "Físico" };
@@ -562,64 +587,15 @@ export default function ProductsPage() {
                                 : p
                         )
                     );
-                    enqueueSnackbar("Produto atualizado com sucesso!", {
-                        variant: "success",
-                    });
+                    showSuccessPopup("Produto atualizado com sucesso!", "Produto atualizado");
                 } else {
-                    // Tratar erros específicos
-                    let errorMessage = "";
-                    try {
-                        const errorData = await res.json();
-                        errorMessage = errorData.message || errorData.error || "";
-                    } catch (e) {
-                        errorMessage = await res.text();
-                    }
+                    const errorMessage = responsePayload.message || responsePayload.raw;
 
                     // Interpretar e exibir erro amigável
                     const friendlyMessage = interpretApiError(errorMessage, res.status, "product");
-                    enqueueSnackbar(friendlyMessage, { variant: "error" });
+                    showErrorPopup(friendlyMessage, "Falha ao atualizar produto", responsePayload.raw);
 
                     console.error(`Erro ao atualizar produto (${res.status}):`, errorMessage);
-                    setLoading(false);
-                    return;
-                }
-            } else if (dialogMode === "delete" && selectedProduct) {
-                // Deletar produto via API
-                const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
-                const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
-                const res = await fetch(`${apiHost}/products/${selectedProduct.id}`, {
-                    method: "DELETE",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-                // Verificar códigos de sucesso (200, 201, 204)
-                if (res.status === 200 || res.status === 201 || res.status === 204) {
-                    setProducts((prev) => prev.filter((p) => p.id !== selectedProduct.id));
-                    enqueueSnackbar("Produto deletado com sucesso!", { variant: "success" });
-                } else {
-                    // Tratar erros específicos
-                    let errorMessage = "";
-                    try {
-                        const errorData = await res.json();
-                        errorMessage = errorData.message || errorData.error || "";
-                    } catch (e) {
-                        errorMessage = await res.text();
-                    }
-
-                    // Interpretar erro com contexto de deleção
-                    let friendlyMessage;
-                    if (res.status === 404) {
-                        friendlyMessage = "Produto não encontrado. Pode já ter sido deletado.";
-                    } else if (res.status === 409 || errorMessage.includes("foreign key") || errorMessage.includes("constraint")) {
-                        friendlyMessage = "Não é possível deletar: produto possui vínculos ativos (ex: pedidos, trocas).";
-                    } else {
-                        friendlyMessage = interpretApiError(errorMessage, res.status, "delete");
-                    }
-
-                    enqueueSnackbar(friendlyMessage, { variant: "error" });
-                    console.error(`Erro ao deletar produto (${res.status}):`, errorMessage);
                     setLoading(false);
                     return;
                 }
@@ -627,7 +603,7 @@ export default function ProductsPage() {
 
             handleCloseDialog();
         } catch (error) {
-            enqueueSnackbar("Erro ao processar operação", { variant: "error" });
+            showErrorPopup(error?.message || "Erro ao processar operação", "Falha na operação");
             console.error("Erro:", error);
         } finally {
             setLoading(false);
