@@ -154,24 +154,56 @@ export const interpretApiError = (errorMessage, statusCode, context = "") => {
     return "Erro desconhecido ao processar a requisição. Tente novamente.";
 };
 
+const stringifyApiPayload = (payload) => {
+    if (payload === null || payload === undefined) return "";
+    if (typeof payload === "string") return payload.trim();
+
+    try {
+        return JSON.stringify(payload, null, 2);
+    } catch (e) {
+        return String(payload);
+    }
+};
+
+export const extractApiResponsePayload = async (response) => {
+    try {
+        const rawText = (await response.text())?.trim() || "";
+
+        if (!rawText) {
+            return { data: null, message: "", raw: "" };
+        }
+
+        const contentType = response.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+            const data = JSON.parse(rawText);
+            const message = data?.message || data?.error || data?.detail || "";
+
+            return {
+                data,
+                message: String(message || "").trim(),
+                raw: stringifyApiPayload(data),
+            };
+        }
+
+        return {
+            data: rawText,
+            message: rawText,
+            raw: rawText,
+        };
+    } catch (e) {
+        return { data: null, message: "", raw: "" };
+    }
+};
+
 /**
  * Extrai a mensagem de erro de uma resposta da API
  * @param {Response} response - Resposta do fetch
  * @returns {Promise<string>} - Mensagem de erro extraída
  */
 export const extractErrorMessage = async (response) => {
-    try {
-        const contentType = response.headers.get("content-type");
-
-        if (contentType && contentType.includes("application/json")) {
-            const errorData = await response.json();
-            return errorData.message || errorData.error || errorData.detail || "";
-        }
-
-        return await response.text();
-    } catch (e) {
-        return "";
-    }
+    const payload = await extractApiResponsePayload(response);
+    return payload.message || payload.raw || "";
 };
 
 /**
