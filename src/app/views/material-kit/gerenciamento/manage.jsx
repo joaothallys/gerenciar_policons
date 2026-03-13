@@ -174,6 +174,8 @@ export default function AppButton() {
           username: u.username,
           role_id: u.role_id,
           role_name: ROLES.find((r) => r.id === u.role_id)?.name || "Desconhecido",
+          points_eligible: Number(u.points_eligible || 0),
+          points_sum: Number(u.points_sum || 0),
           created_at: u.created_at ? new Date(u.created_at).toLocaleDateString("pt-BR") : "-",
         }));
 
@@ -455,6 +457,10 @@ export default function AppButton() {
     return roleId === 2 ? "primary" : "default";
   };
 
+  const formatPoints = (value) => {
+    return Number(value || 0).toLocaleString("pt-BR");
+  };
+
   return (
     <Container>
       {/* Breadcrumb */}
@@ -547,8 +553,10 @@ export default function AppButton() {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ pl: 3 }}>Email</TableCell>
-                <TableCell>Username</TableCell>
+                <TableCell>Nome de Usuário</TableCell>
                 <TableCell align="center">Papel</TableCell>
+                <TableCell align="center">Pontos Elegíveis</TableCell>
+                <TableCell align="center">Soma de Pontos</TableCell>
                 <TableCell align="center">Data de Criação</TableCell>
                 <TableCell align="center">Ações</TableCell>
               </TableRow>
@@ -556,7 +564,7 @@ export default function AppButton() {
             <TableBody>
               {fetching ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
@@ -570,6 +578,22 @@ export default function AppButton() {
                         label={user.role_name}
                         color={getRoleColor(user.role_id)}
                         size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={formatPoints(user.points_eligible)}
+                        size="small"
+                        color="info"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={formatPoints(user.points_sum)}
+                        size="small"
+                        color="success"
                         variant="outlined"
                       />
                     </TableCell>
@@ -599,7 +623,7 @@ export default function AppButton() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                     Nenhum usuário encontrado
                   </TableCell>
                 </TableRow>
