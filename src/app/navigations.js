@@ -1,5 +1,4 @@
 const navigations = [
-  { name: "Dashboard", path: "/dashboard/default", icon: "dashboard" },
   { label: "Ferramentas", type: "label" },
   {
     name: "Ferramentas",

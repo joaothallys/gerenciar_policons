@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
           payload: { user: null, role: null },
         });
 
-        navigate("/dashboard/default");
+        navigate("/material/customer");
       } else {
         // Caso o login falhe
         throw new Error(response.message || "Erro ao fazer login.");

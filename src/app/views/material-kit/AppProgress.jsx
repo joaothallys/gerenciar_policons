@@ -634,7 +634,7 @@ export default function ProductsPage() {
             <Box className="breadcrumb">
                 <Breadcrumb
                     routeSegments={[
-                        { name: "Dashboard", path: "/dashboard/default" },
+                        { name: "Transações", path: "/material/customer" },
                         { name: "Produtos" },
                     ]}
                 />

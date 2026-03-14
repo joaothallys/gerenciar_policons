@@ -30,7 +30,7 @@ export default function NotFound() {
       <div className="content">
         <StyledImage src="/assets/images/illustrations/404.svg" alt="404-Not Found" />
 
-        <Button color="primary" variant="contained" onClick={() => navigate('/dashboard/default')}>
+        <Button color="primary" variant="contained" onClick={() => navigate('/material/customer')}>
           Go Back
         </Button>
       </div>

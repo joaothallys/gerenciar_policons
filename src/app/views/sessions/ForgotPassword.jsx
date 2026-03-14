@@ -66,7 +66,7 @@ export default function ForgotPassword() {
               fullWidth
               color="primary"
               variant="outlined"
-              onClick={() => navigate('/dashboard/default')}
+              onClick={() => navigate('/material/customer')}
               sx={{ mt: 2 }}>
               Go Back
             </Button>
