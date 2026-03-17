@@ -1,7 +1,9 @@
 import { memo } from "react";
 import Switch from "@mui/material/Switch";
+import Box from "@mui/material/Box";
 import { styled, alpha } from "@mui/material/styles";
 import useTheme from "@mui/material/styles/useTheme";
+import { version } from "../../../../../package.json";
 
 import useSettings from "app/hooks/useSettings";
 import Brand from "app/components/Brand";
@@ -80,6 +82,22 @@ const Layout1Sidenav = () => {
           />
         </Brand>
         <Sidenav />
+
+        <Box sx={{ flexGrow: 1 }} />
+
+        <Box
+          sx={{
+            textAlign: "center",
+            py: 1.5,
+            fontSize: "11px",
+            opacity: 0.45,
+            color: "white",
+            letterSpacing: "0.5px",
+            flexShrink: 0,
+          }}
+        >
+          v{version}
+        </Box>
       </NavListBox>
     </SidebarNavRoot>
   );

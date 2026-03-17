@@ -283,8 +283,6 @@ export default function TransactionsPage() {
         payment_method_name: t.payment_method?.name || "",
         productID: t.product_id || null,
         productName: t.product?.name || "-",
-        responsibleID: t.responsible_id || null,
-        responsibleName: t.responsible?.username || "-",
       }));
 
       setTransactions(mapped);
@@ -829,7 +827,6 @@ export default function TransactionsPage() {
                 <TableCell>Produto</TableCell>
                 <TableCell align="center">Pontos</TableCell>
                 <TableCell align="center">Método de Pagamento</TableCell>
-                <TableCell>Responsável</TableCell>
                 <TableCell align="center">Data</TableCell>
                 <TableCell align="center">Ações</TableCell>
               </TableRow>
@@ -880,11 +877,6 @@ export default function TransactionsPage() {
                           variant="outlined"
                           sx={{ fontSize: "12px" }}
                         />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ fontSize: "13px" }}>
-                        {transaction.responsibleName}
                       </Box>
                     </TableCell>
                     <TableCell align="center">{transaction.created_at}</TableCell>
@@ -1018,15 +1010,7 @@ export default function TransactionsPage() {
                     </Box>
                   </Grid>
 
-                  {/* Responsável */}
-                  <Grid item xs={12}>
-                    <Box sx={{ fontSize: "11px", color: "text.secondary", mb: 0.5, textTransform: "uppercase", fontWeight: 600 }}>
-                      Responsável
-                    </Box>
-                    <Box sx={{ fontSize: "13px" }}>
-                      {transaction.responsibleName}
-                    </Box>
-                  </Grid>
+
                 </Grid>
 
                 {/* Botões de Ação */}

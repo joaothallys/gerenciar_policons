@@ -1,4 +1,4 @@
-import { createContext, useEffect, useReducer } from "react";
+import { createContext, useEffect, useReducer, useRef } from "react";
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 // GLOBAL CUSTOM COMPONENTS
@@ -12,12 +12,13 @@ const initialState = {
 
 const isValidToken = (accessToken) => {
   if (!accessToken) return false;
-  const decodedToken = jwtDecode(accessToken);
-
-  // const currentTime = Date.now() / 1000;
-  // return decodedToken.exp > currentTime;
-
-  return decodedToken?.id ? true : false;
+  try {
+    const decodedToken = jwtDecode(accessToken);
+    const currentTime = Date.now() / 1000;
+    return decodedToken.exp > currentTime;
+  } catch {
+    return false;
+  }
 };
 
 const setSession = (accessToken) => {
@@ -60,12 +61,36 @@ const AuthContext = createContext({
 
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const logoutTimerRef = useRef(null);
+
+  const scheduleAutoLogout = (token, logoutFn) => {
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    try {
+      const { exp } = jwtDecode(token);
+      // Dispara 30 segundos antes do vencimento
+      const msUntilLogout = exp * 1000 - Date.now() - 30_000;
+      if (msUntilLogout <= 0) {
+        logoutFn();
+        return;
+      }
+      logoutTimerRef.current = setTimeout(() => logoutFn(), msUntilLogout);
+    } catch {
+      logoutFn();
+    }
+  };
+
+  const logout = () => {
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    setSession(null);
+    dispatch({ type: "LOGOUT" });
+  };
 
   const login = async (email, password) => {
     const { data } = await axios.post("/login", { email, password });
     const { token } = data;
 
     setSession(token);
+    scheduleAutoLogout(token, logout);
     dispatch({ type: "LOGIN", payload: { user: null } });
   };
 
@@ -74,12 +99,8 @@ export const AuthProvider = ({ children }) => {
     const { accessToken, user } = data;
 
     setSession(accessToken);
+    scheduleAutoLogout(accessToken, logout);
     dispatch({ type: "REGISTER", payload: { user } });
-  };
-
-  const logout = () => {
-    setSession(null);
-    dispatch({ type: "LOGOUT" });
   };
 
   useEffect(() => {
@@ -89,6 +110,7 @@ export const AuthProvider = ({ children }) => {
 
         if (accessToken && isValidToken(accessToken)) {
           setSession(accessToken);
+          scheduleAutoLogout(accessToken, logout);
           const response = await axios.get("/api/auth/profile");
           const { user } = response.data;
 
