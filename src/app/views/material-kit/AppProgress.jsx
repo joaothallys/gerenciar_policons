@@ -110,6 +110,17 @@ const PRODUCT_TYPES = [
     { id: 2, name: "Físico" },
 ];
 
+const PRODUCT_DESCRIPTION_OPTIONS = [
+    "Bebidas",
+    "Eletrônicos",
+    "Eletrodomésticos",
+    "Esportivos",
+    "Mini Mercado",
+    "Perfumaria & Beleza",
+    "Variedades & Utensílios",
+    "Vouchers",
+];
+
 export default function ProductsPage() {
     const [products, setProducts] = useState([]);
     const [filteredProducts, setFilteredProducts] = useState([]);
@@ -128,7 +139,7 @@ export default function ProductsPage() {
     const [stockQuantity, setStockQuantity] = useState("");
     const [showValidation, setShowValidation] = useState(false);
 
-    const itemsPerPage = 10;
+    const itemsPerPage = 12;
 
     // Helper para decodificar JWT
     function parseJwt(token) {
@@ -336,7 +347,9 @@ export default function ProductsPage() {
         } else if (mode === "edit" && product) {
             setFormData({
                 name: product.name,
-                description: product.description,
+                description: PRODUCT_DESCRIPTION_OPTIONS.includes(product.description)
+                    ? product.description
+                    : "",
                 points: product.points.toString(),
                 type_id: product.type_id.toString(),
                 imageURL: product.imageURL,
@@ -993,18 +1006,27 @@ export default function ProductsPage() {
                             helperText={showValidation && !formData.name ? "Campo obrigatório" : ""}
                             error={showValidation && !formData.name}
                         />
-                        <TextField
-                            fullWidth
-                            label="Descrição"
-                            name="description"
-                            value={formData.description}
-                            onChange={handleFormChange}
-                            multiline
-                            rows={3}
-                            required
-                            helperText={showValidation && !formData.description ? "Campo obrigatório" : ""}
-                            error={showValidation && !formData.description}
-                        />
+                        <FormControl fullWidth required error={showValidation && !formData.description}>
+                            <InputLabel id="description-select-label">Descrição *</InputLabel>
+                            <Select
+                                labelId="description-select-label"
+                                name="description"
+                                value={formData.description}
+                                onChange={handleFormChange}
+                                label="Descrição *"
+                            >
+                                {PRODUCT_DESCRIPTION_OPTIONS.map((option) => (
+                                    <MenuItem key={option} value={option}>
+                                        {option}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                            {showValidation && !formData.description && (
+                                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                                    Campo obrigatório
+                                </Typography>
+                            )}
+                        </FormControl>
                         <TextField
                             fullWidth
                             label="Pontos Necessários"

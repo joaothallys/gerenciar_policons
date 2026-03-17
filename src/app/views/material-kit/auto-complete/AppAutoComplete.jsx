@@ -25,6 +25,7 @@ import {
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { interpretApiError } from "app/utils/apiErrorHandler";
+import { showErrorPopup, showSuccessPopup } from "app/utils/popup";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -626,10 +627,53 @@ export default function TransactionsPage() {
     setOpenDialog(true);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm("Deseja deletar esta transação?")) {
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
-      enqueueSnackbar("Transação deletada com sucesso!", { variant: "success" });
+  const handleDelete = async (id) => {
+    if (!window.confirm("Deseja deletar esta transação?")) return;
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+      return;
+    }
+
+    const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+    const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${apiHost}/transactions/${id}`, {
+        method: "DELETE",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 200 || res.status === 204) {
+        setTransactions((prev) => prev.filter((t) => t.id !== id));
+        enqueueSnackbar("Transação deletada com sucesso!", { variant: "success" });
+        showSuccessPopup("Transação deletada com sucesso!", "Transação removida");
+        return;
+      }
+
+      let errorMessage = "";
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorData.error || "";
+      } catch (e) {
+        errorMessage = await res.text();
+      }
+
+      const friendlyMessage = interpretApiError(errorMessage, res.status, "transaction");
+      enqueueSnackbar(friendlyMessage, { variant: "error" });
+      showErrorPopup(friendlyMessage, "Falha ao deletar transação", errorMessage);
+      console.error(`Erro ao deletar transação (${res.status}):`, errorMessage);
+    } catch (error) {
+      console.error("Erro ao deletar transação:", error);
+      enqueueSnackbar("Erro ao deletar transação. Verifique o servidor.", { variant: "error" });
+      showErrorPopup("Erro ao deletar transação. Verifique o servidor.", "Falha ao deletar transação");
+    } finally {
+      setLoading(false);
     }
   };
 
