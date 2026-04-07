@@ -95,57 +95,19 @@ const MetaCard = styled(Card)(({ theme }) => ({
   },
 }));
 
-// Mock data - Metas mensais
-const MOCK_METAS = [
-  {
-    id: 1,
-    month_ref: "2025-11",
-    meta_perc: 100,
-    responsible_user_id: 1,
-    user: { id: 1, username: "João Silva", email: "joao@example.com" },
-    updated_at: "2025-11-15",
-    progress: 75,
-  },
-  {
-    id: 2,
-    month_ref: "2025-10",
-    meta_perc: 120,
-    responsible_user_id: 2,
-    user: { id: 2, username: "Maria Santos", email: "maria@example.com" },
-    updated_at: "2025-10-30",
-    progress: 100,
-  },
-  {
-    id: 3,
-    month_ref: "2025-09",
-    meta_perc: 90,
-    responsible_user_id: 1,
-    user: { id: 1, username: "João Silva", email: "joao@example.com" },
-    updated_at: "2025-09-28",
-    progress: 85,
-  },
-  {
-    id: 4,
-    month_ref: "2025-12",
-    meta_perc: 150,
-    responsible_user_id: 3,
-    user: { id: 3, username: "Pedro Costa", email: "pedro@example.com" },
-    updated_at: "2025-11-20",
-    progress: 45,
-  },
-];
-
 export default function MonthlyMetasPage() {
   const { enqueueSnackbar } = useSnackbar();
-  const [metas, setMetas] = useState(MOCK_METAS);
-  const [filteredMetas, setFilteredMetas] = useState(MOCK_METAS);
+  const [metas, setMetas] = useState([]);
+  const [filteredMetas, setFilteredMetas] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [loadingMetas, setLoadingMetas] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState("create");
   const [selectedMeta, setSelectedMeta] = useState(null);
-  const [viewMode, setViewMode] = useState("card"); // card ou table
+  const [viewMode, setViewMode] = useState("card");
 
   const [formData, setFormData] = useState({
     month_ref: "",
@@ -160,13 +122,116 @@ export default function MonthlyMetasPage() {
   const getAuthToken = () => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
-      enqueueSnackbar("Token não encontrado. Faça login novamente.", {
+      enqueueSnackbar("Token nao encontrado. Faca login novamente.", {
         variant: "warning",
       });
       return null;
     }
     return token;
   };
+
+  const mapMetaFromApi = (meta) => {
+    const monthRef = meta?.month_ref ? String(meta.month_ref).slice(0, 7) : "-";
+    const updatedAt = meta?.updated_at ? String(meta.updated_at).slice(0, 10) : "-";
+    const metaPerc = Number(meta?.meta_perc ?? 0);
+
+    return {
+      id: meta?.id,
+      month_ref: monthRef,
+      meta_perc: metaPerc,
+      responsible_user_id: meta?.responsible_user_id,
+      user: {
+        id: meta?.responsible_user_id,
+        username: `Responsavel ${meta?.responsible_user_id ?? "-"}`,
+        email: "-",
+      },
+      updated_at: updatedAt,
+      progress: Math.min(Math.max(metaPerc, 0), 100),
+    };
+  };
+
+  const fetchMetas = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    const apiHost = getApiHost();
+    setLoadingMetas(true);
+
+    try {
+      const firstRes = await fetch(`${apiHost}/meta?page=1&per_page=10`, {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          Authorization: token,
+        },
+      });
+
+      if (!firstRes.ok) {
+        let errorMessage = "";
+        try {
+          const errorData = await firstRes.json();
+          errorMessage = errorData?.message || errorData?.error || "";
+        } catch (e) {
+          errorMessage = await firstRes.text();
+        }
+
+        enqueueSnackbar(errorMessage || `Erro ao carregar metas (${firstRes.status})`, {
+          variant: "error",
+        });
+        setMetas([]);
+        setSummary(null);
+        return;
+      }
+
+      const firstPayload = await firstRes.json();
+      const totalPagesFromApi = Number(firstPayload?.total_pages ?? 1);
+
+      let allItems = Array.isArray(firstPayload?.monthly_metas)
+        ? firstPayload.monthly_metas.map(mapMetaFromApi)
+        : [];
+
+      if (totalPagesFromApi > 1) {
+        const pageRequests = Array.from({ length: totalPagesFromApi - 1 }, (_, index) => index + 2);
+        const responses = await Promise.all(
+          pageRequests.map((currentPage) =>
+            fetch(`${apiHost}/meta?page=${currentPage}&per_page=10`, {
+              method: "GET",
+              headers: {
+                accept: "application/json",
+                Authorization: token,
+              },
+            })
+          )
+        );
+
+        const nextPagesItems = await Promise.all(
+          responses.map(async (response) => {
+            if (!response.ok) return [];
+            const payload = await response.json();
+            return Array.isArray(payload?.monthly_metas)
+              ? payload.monthly_metas.map(mapMetaFromApi)
+              : [];
+          })
+        );
+
+        allItems = [...allItems, ...nextPagesItems.flat()];
+      }
+
+      setMetas(allItems);
+      setSummary(firstPayload?.summary ?? null);
+    } catch (error) {
+      enqueueSnackbar("Erro ao buscar metas", { variant: "error" });
+      console.error("Erro ao buscar metas:", error);
+      setMetas([]);
+      setSummary(null);
+    } finally {
+      setLoadingMetas(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchMetas();
+  }, []);
 
   const itemsPerPage = 10;
   const totalPages = Math.ceil(filteredMetas.length / itemsPerPage);
@@ -175,16 +240,16 @@ export default function MonthlyMetasPage() {
     page * itemsPerPage
   );
 
-  // Filtrar metas
   React.useEffect(() => {
     let result = metas;
 
     if (search) {
+      const normalizedSearch = search.toLowerCase();
       result = result.filter(
         (meta) =>
           meta.month_ref.includes(search) ||
-          meta.user.username.toLowerCase().includes(search.toLowerCase()) ||
-          meta.user.email.toLowerCase().includes(search.toLowerCase())
+          meta.user.username.toLowerCase().includes(normalizedSearch) ||
+          meta.user.email.toLowerCase().includes(normalizedSearch)
       );
     }
 
@@ -202,7 +267,7 @@ export default function MonthlyMetasPage() {
 
     if (mode === "create") {
       setFormData({
-        month_ref: new Date().toISOString().split("T")[0].slice(0, 7), // YYYY-MM
+        month_ref: new Date().toISOString().split("T")[0].slice(0, 7),
         meta_perc: "",
       });
     } else if (mode === "edit" && meta) {
@@ -232,18 +297,17 @@ export default function MonthlyMetasPage() {
     setLoading(true);
 
     try {
-      // Validações
       if (!formData.month_ref || !formData.meta_perc) {
-        enqueueSnackbar("Preencha todos os campos obrigatórios", {
+        enqueueSnackbar("Preencha todos os campos obrigatorios", {
           variant: "warning",
         });
         setLoading(false);
         return;
       }
 
-      const metaValue = parseInt(formData.meta_perc);
+      const metaValue = parseInt(formData.meta_perc, 10);
       if (isNaN(metaValue) || metaValue < 0 || metaValue > 1000) {
-        enqueueSnackbar("Meta deve ser um número entre 0 e 1000", {
+        enqueueSnackbar("Meta deve ser um numero entre 0 e 1000", {
           variant: "warning",
         });
         setLoading(false);
@@ -251,9 +315,8 @@ export default function MonthlyMetasPage() {
       }
 
       if (dialogMode === "create") {
-        const normalizedMonthRef = formData.month_ref?.length === 7
-          ? `${formData.month_ref}-01`
-          : formData.month_ref;
+        const normalizedMonthRef =
+          formData.month_ref?.length === 7 ? `${formData.month_ref}-01` : formData.month_ref;
 
         const formDataToSend = new FormData();
         formDataToSend.append("meta_perc", metaValue.toString());
@@ -286,32 +349,11 @@ export default function MonthlyMetasPage() {
           return;
         }
 
-        const createdMeta = await res.json();
-
-        const newMeta = {
-          id: createdMeta?.id ?? Math.max(...metas.map((m) => m.id), 0) + 1,
-          month_ref: createdMeta?.month_ref
-            ? String(createdMeta.month_ref).slice(0, 10)
-            : normalizedMonthRef,
-          meta_perc: Number(createdMeta?.meta_perc ?? metaValue),
-          responsible_user_id: createdMeta?.responsible_user_id ?? 1,
-          user: {
-            id: createdMeta?.responsible_user_id ?? 1,
-            username: "Usuário Atual",
-            email: "-",
-          },
-          updated_at: createdMeta?.updated_at
-            ? String(createdMeta.updated_at).slice(0, 10)
-            : new Date().toISOString().split("T")[0],
-          progress: 0,
-        };
-
-        setMetas((prev) => [newMeta, ...prev]);
         enqueueSnackbar("Meta criada com sucesso!", { variant: "success" });
+        await fetchMetas();
       } else if (dialogMode === "edit" && selectedMeta) {
-        const normalizedMonthRef = formData.month_ref?.length === 7
-          ? `${formData.month_ref}-01`
-          : formData.month_ref;
+        const normalizedMonthRef =
+          formData.month_ref?.length === 7 ? `${formData.month_ref}-01` : formData.month_ref;
 
         const formDataToSend = new FormData();
         formDataToSend.append("meta_perc", metaValue.toString());
@@ -344,37 +386,15 @@ export default function MonthlyMetasPage() {
           return;
         }
 
-        const updatedMeta = await res.json();
-
-        setMetas((prev) =>
-          prev.map((m) =>
-            m.id === selectedMeta.id
-              ? {
-                ...m,
-                meta_perc: Number(updatedMeta?.meta_perc ?? metaValue),
-                month_ref: updatedMeta?.month_ref
-                  ? String(updatedMeta.month_ref).slice(0, 10)
-                  : normalizedMonthRef,
-                responsible_user_id: updatedMeta?.responsible_user_id ?? m.responsible_user_id,
-                updated_at: updatedMeta?.updated_at
-                  ? String(updatedMeta.updated_at).slice(0, 10)
-                  : new Date().toISOString().split("T")[0],
-              }
-              : m
-          )
-        );
         enqueueSnackbar("Meta atualizada com sucesso!", {
           variant: "success",
         });
-      } else if (dialogMode === "delete" && selectedMeta) {
-        // await axios.delete(`/meta/${selectedMeta.id}`);
-        setMetas((prev) => prev.filter((m) => m.id !== selectedMeta.id));
-        enqueueSnackbar("Meta deletada com sucesso!", { variant: "success" });
+        await fetchMetas();
       }
 
       handleCloseDialog();
     } catch (error) {
-      enqueueSnackbar("Erro ao processar operação", { variant: "error" });
+      enqueueSnackbar("Erro ao processar operacao", { variant: "error" });
       console.error("Erro:", error);
     } finally {
       setLoading(false);
@@ -388,37 +408,38 @@ export default function MonthlyMetasPage() {
     return "error";
   };
 
-  const getMetaStatusColor = (meta_perc) => {
-    if (meta_perc >= 150) return "error";
-    if (meta_perc >= 120) return "warning";
+  const getMetaStatusColor = (metaPerc) => {
+    if (metaPerc >= 150) return "error";
+    if (metaPerc >= 120) return "warning";
     return "success";
   };
 
-  const totalMetas = metas.length;
-  const avgMeta = (
-    metas.reduce((sum, m) => sum + m.meta_perc, 0) / metas.length
-  ).toFixed(0);
-  const completedMetas = metas.filter((m) => m.progress >= 100).length;
+  const totalMetas = summary?.total_metas ?? metas.length;
+  const avgMeta =
+    summary?.media_metas !== undefined
+      ? Number(summary.media_metas).toFixed(0)
+      : metas.length
+      ? (metas.reduce((sum, m) => sum + m.meta_perc, 0) / metas.length).toFixed(0)
+      : "0";
+  const completedMetas = summary?.metas_acima_100 ?? metas.filter((m) => m.progress >= 100).length;
 
   return (
     <Container>
-      {/* Breadcrumb */}
       <Box className="breadcrumb">
         <Breadcrumb
           routeSegments={[
-            { name: "Transações", path: "/material/customer" },
+            { name: "Transacoes", path: "/material/customer" },
             { name: "Metas Mensais" },
           ]}
         />
       </Box>
 
-      {/* Estatísticas */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard elevation={0}>
             <div className="stat-label">TOTAL DE METAS</div>
             <div className="stat-value">{totalMetas}</div>
-            <div className="stat-label">Cadastradas no período</div>
+            <div className="stat-label">Cadastradas no periodo</div>
           </StatCard>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -440,21 +461,20 @@ export default function MonthlyMetasPage() {
               background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
             }}
           >
-            <div className="stat-label">META MÉDIA</div>
+            <div className="stat-label">META MEDIA</div>
             <div className="stat-value">{avgMeta}%</div>
-            <div className="stat-label">Percentual médio</div>
+            <div className="stat-label">Percentual medio</div>
           </StatCard>
         </Grid>
       </Grid>
 
-      {/* Filtros */}
       <FilterCard>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
               size="small"
-              label="Buscar por Mês ou Responsável"
+              label="Buscar por Mes ou Responsavel"
               value={search}
               onChange={handleSearch}
               placeholder="YYYY-MM ou nome..."
@@ -489,10 +509,13 @@ export default function MonthlyMetasPage() {
         </Box>
       </FilterCard>
 
-      {/* Visualização em Cards */}
       {viewMode === "card" && (
         <Box>
-          {paginatedMetas.length > 0 ? (
+          {loadingMetas ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : paginatedMetas.length > 0 ? (
             paginatedMetas.map((meta) => (
               <MetaCard key={meta.id}>
                 <Grid container spacing={2} alignItems="center">
@@ -501,7 +524,7 @@ export default function MonthlyMetasPage() {
                       {meta.month_ref}
                     </Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                      Responsável: {meta.user.username}
+                      Responsavel: {meta.user.username}
                     </Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
                       {meta.user.email}
@@ -560,11 +583,10 @@ export default function MonthlyMetasPage() {
           ) : (
             <Alert severity="info">
               <AlertTitle>Nenhuma meta encontrada</AlertTitle>
-              Crie uma nova meta para começar a acompanhar seu progresso
+              Crie uma nova meta para comecar a acompanhar seu progresso
             </Alert>
           )}
 
-          {/* Paginação */}
           {totalPages > 1 && (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
               <Pagination
@@ -578,23 +600,22 @@ export default function MonthlyMetasPage() {
         </Box>
       )}
 
-      {/* Visualização em Tabela */}
       {viewMode === "table" && (
         <SimpleCard title="Metas Mensais">
           <MetaTable>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell align="center">Mês</TableCell>
-                  <TableCell>Responsável</TableCell>
+                  <TableCell align="center">Mes</TableCell>
+                  <TableCell>Responsavel</TableCell>
                   <TableCell align="right">Meta (%)</TableCell>
                   <TableCell align="center">Progresso</TableCell>
-                  <TableCell align="center">Última Atualização</TableCell>
-                  <TableCell align="center">Ações</TableCell>
+                  <TableCell align="center">Ultima Atualizacao</TableCell>
+                  <TableCell align="center">Acoes</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {loading ? (
+                {loadingMetas ? (
                   <TableRow>
                     <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
                       <CircularProgress />
@@ -662,7 +683,6 @@ export default function MonthlyMetasPage() {
             </Table>
           </MetaTable>
 
-          {/* Paginação */}
           {totalPages > 1 && (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
               <Pagination
@@ -676,7 +696,6 @@ export default function MonthlyMetasPage() {
         </SimpleCard>
       )}
 
-      {/* Dialog para Criar/Editar */}
       <Dialog
         open={openDialog && (dialogMode === "create" || dialogMode === "edit")}
         onClose={handleCloseDialog}
@@ -690,7 +709,7 @@ export default function MonthlyMetasPage() {
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <TextField
               fullWidth
-              label="Mês de Referência"
+              label="Mes de Referencia"
               name="month_ref"
               type="month"
               value={formData.month_ref}
@@ -720,35 +739,6 @@ export default function MonthlyMetasPage() {
             disabled={loading}
           >
             {loading ? <CircularProgress size={24} /> : "Salvar"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Dialog para Deletar */}
-      <Dialog
-        open={openDialog && dialogMode === "delete"}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Confirmar Exclusão</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Alert severity="warning">
-            <AlertTitle>Atenção</AlertTitle>
-            Tem certeza que deseja deletar a meta de{" "}
-            <strong>{selectedMeta?.month_ref}</strong>? Esta ação não pode ser
-            desfeita.
-          </Alert>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCloseDialog}>Cancelar</Button>
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            color="error"
-            disabled={loading}
-          >
-            {loading ? <CircularProgress size={24} /> : "Deletar"}
           </Button>
         </DialogActions>
       </Dialog>
