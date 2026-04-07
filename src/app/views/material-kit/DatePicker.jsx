@@ -28,7 +28,6 @@ import { Breadcrumb, SimpleCard } from "app/components";
 import { useSnackbar } from "notistack";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import Pagination from "@mui/lab/Pagination";
 
@@ -153,6 +152,22 @@ export default function MonthlyMetasPage() {
     meta_perc: "",
   });
 
+  const getApiHost = () => {
+    const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+    return runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST || "http://localhost:5000";
+  };
+
+  const getAuthToken = () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      enqueueSnackbar("Token não encontrado. Faça login novamente.", {
+        variant: "warning",
+      });
+      return null;
+    }
+    return token;
+  };
+
   const itemsPerPage = 10;
   const totalPages = Math.ceil(filteredMetas.length / itemsPerPage);
   const paginatedMetas = filteredMetas.slice(
@@ -211,6 +226,9 @@ export default function MonthlyMetasPage() {
   };
 
   const handleSubmit = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+
     setLoading(true);
 
     try {
@@ -233,36 +251,114 @@ export default function MonthlyMetasPage() {
       }
 
       if (dialogMode === "create") {
-        // const formDataToSend = new FormData();
-        // formDataToSend.append("meta_perc", formData.meta_perc);
-        // formDataToSend.append("month_ref", formData.month_ref);
-        // await axios.post("/meta", formDataToSend);
+        const normalizedMonthRef = formData.month_ref?.length === 7
+          ? `${formData.month_ref}-01`
+          : formData.month_ref;
+
+        const formDataToSend = new FormData();
+        formDataToSend.append("meta_perc", metaValue.toString());
+        formDataToSend.append("month_ref", normalizedMonthRef);
+
+        const apiHost = getApiHost();
+        const res = await fetch(`${apiHost}/meta`, {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            Authorization: token,
+          },
+          body: formDataToSend,
+        });
+
+        if (!res.ok) {
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData?.message || errorData?.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          enqueueSnackbar(
+            errorMessage || `Erro ao criar meta mensal (${res.status})`,
+            { variant: "error" }
+          );
+          setLoading(false);
+          return;
+        }
+
+        const createdMeta = await res.json();
 
         const newMeta = {
-          id: Math.max(...metas.map((m) => m.id), 0) + 1,
-          ...formData,
-          meta_perc: metaValue,
-          responsible_user_id: 1, // Seria do usuário logado
-          user: { id: 1, username: "Usuário Atual", email: "user@example.com" },
-          updated_at: new Date().toISOString().split("T")[0],
-          progress: Math.floor(Math.random() * 100),
+          id: createdMeta?.id ?? Math.max(...metas.map((m) => m.id), 0) + 1,
+          month_ref: createdMeta?.month_ref
+            ? String(createdMeta.month_ref).slice(0, 10)
+            : normalizedMonthRef,
+          meta_perc: Number(createdMeta?.meta_perc ?? metaValue),
+          responsible_user_id: createdMeta?.responsible_user_id ?? 1,
+          user: {
+            id: createdMeta?.responsible_user_id ?? 1,
+            username: "Usuário Atual",
+            email: "-",
+          },
+          updated_at: createdMeta?.updated_at
+            ? String(createdMeta.updated_at).slice(0, 10)
+            : new Date().toISOString().split("T")[0],
+          progress: 0,
         };
+
         setMetas((prev) => [newMeta, ...prev]);
         enqueueSnackbar("Meta criada com sucesso!", { variant: "success" });
       } else if (dialogMode === "edit" && selectedMeta) {
-        // const formDataToSend = new FormData();
-        // formDataToSend.append("meta_perc", formData.meta_perc);
-        // formDataToSend.append("month_ref", formData.month_ref);
-        // await axios.put(`/meta/${selectedMeta.id}`, formDataToSend);
+        const normalizedMonthRef = formData.month_ref?.length === 7
+          ? `${formData.month_ref}-01`
+          : formData.month_ref;
+
+        const formDataToSend = new FormData();
+        formDataToSend.append("meta_perc", metaValue.toString());
+        formDataToSend.append("month_ref", normalizedMonthRef);
+
+        const apiHost = getApiHost();
+        const res = await fetch(`${apiHost}/meta/${selectedMeta.id}`, {
+          method: "PUT",
+          headers: {
+            accept: "application/json",
+            Authorization: token,
+          },
+          body: formDataToSend,
+        });
+
+        if (!res.ok) {
+          let errorMessage = "";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData?.message || errorData?.error || "";
+          } catch (e) {
+            errorMessage = await res.text();
+          }
+
+          enqueueSnackbar(
+            errorMessage || `Erro ao atualizar meta mensal (${res.status})`,
+            { variant: "error" }
+          );
+          setLoading(false);
+          return;
+        }
+
+        const updatedMeta = await res.json();
 
         setMetas((prev) =>
           prev.map((m) =>
             m.id === selectedMeta.id
               ? {
                 ...m,
-                meta_perc: metaValue,
-                month_ref: formData.month_ref,
-                updated_at: new Date().toISOString().split("T")[0],
+                meta_perc: Number(updatedMeta?.meta_perc ?? metaValue),
+                month_ref: updatedMeta?.month_ref
+                  ? String(updatedMeta.month_ref).slice(0, 10)
+                  : normalizedMonthRef,
+                responsible_user_id: updatedMeta?.responsible_user_id ?? m.responsible_user_id,
+                updated_at: updatedMeta?.updated_at
+                  ? String(updatedMeta.updated_at).slice(0, 10)
+                  : new Date().toISOString().split("T")[0],
               }
               : m
           )
@@ -456,15 +552,6 @@ export default function MonthlyMetasPage() {
                       >
                         Editar
                       </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => handleOpenDialog("delete", meta)}
-                      >
-                        Deletar
-                      </Button>
                     </Box>
                   </Grid>
                 </Grid>
@@ -559,15 +646,6 @@ export default function MonthlyMetasPage() {
                             onClick={() => handleOpenDialog("edit", meta)}
                           >
                             Editar
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            startIcon={<DeleteIcon />}
-                            onClick={() => handleOpenDialog("delete", meta)}
-                          >
-                            Deletar
                           </Button>
                         </Box>
                       </TableCell>
