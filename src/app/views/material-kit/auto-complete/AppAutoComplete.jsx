@@ -29,6 +29,7 @@ import { showErrorPopup, showSuccessPopup } from "app/utils/popup";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import DownloadIcon from "@mui/icons-material/Download";
 import { useSnackbar } from "notistack";
 
 const Container = styled("div")(({ theme }) => ({
@@ -203,7 +204,9 @@ export default function TransactionsPage() {
   });
 
   const [transactions, setTransactions] = useState([]);
+  const [transactionProductsById, setTransactionProductsById] = useState({});
   const [loading, setLoading] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   // Helper simples para decodificar payload do JWT sem depender de libs
   function parseJwt(token) {
@@ -270,8 +273,58 @@ export default function TransactionsPage() {
 
       const json = await res.json();
 
+      const rawTransactions = json.transactions || [];
+      const productIds = [...new Set(
+        rawTransactions
+          .map((t) => Number(t.product_id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      )];
+
+      const missingProductIds = productIds.filter((id) => !transactionProductsById[id]);
+      let fetchedProductsById = {};
+
+      if (missingProductIds.length > 0) {
+        const productResponses = await Promise.all(
+          missingProductIds.map(async (productId) => {
+            try {
+              const productRes = await fetch(`${apiHost}/products/${productId}`, {
+                method: "GET",
+                headers: {
+                  accept: "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+
+              if (!productRes.ok) return null;
+
+              const productJson = await productRes.json();
+              return {
+                id: productId,
+                name: productJson?.name || "-",
+              };
+            } catch (error) {
+              console.error(`Erro ao buscar produto ${productId}:`, error);
+              return null;
+            }
+          })
+        );
+
+        fetchedProductsById = productResponses.reduce((acc, item) => {
+          if (item?.id) {
+            acc[item.id] = item.name;
+          }
+          return acc;
+        }, {});
+
+        if (Object.keys(fetchedProductsById).length > 0) {
+          setTransactionProductsById((prev) => ({ ...prev, ...fetchedProductsById }));
+        }
+      }
+
+      const productsById = { ...transactionProductsById, ...fetchedProductsById };
+
       // Mapear estrutura da API para o formato esperado pela tabela
-      const mapped = (json.transactions || []).map((t) => ({
+      const mapped = rawTransactions.map((t) => ({
         id: t.id,
         userID: t.user_id || t.user?.id || "",
         userName: t.user?.username || `Usuário ${t.user_id}`,
@@ -283,7 +336,7 @@ export default function TransactionsPage() {
         payment_method_id: t.payment_method_id || t.payment_method?.id || 1,
         payment_method_name: t.payment_method?.name || "",
         productID: t.product_id || null,
-        productName: t.product?.name || "-",
+        productName: t.product?.name || productsById[t.product_id] || "-",
       }));
 
       setTransactions(mapped);
@@ -677,6 +730,206 @@ export default function TransactionsPage() {
     }
   };
 
+  const handleExportCsv = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+      return;
+    }
+
+    const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+    const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
+    const userId = filters.userId || "{user_id}";
+
+    const escapeCsvValue = (value) => {
+      const stringValue = value === null || value === undefined ? "" : String(value);
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    };
+
+    const applySearchFilter = (tx) => {
+      if (!filters.search) return true;
+      const term = filters.search.toLowerCase();
+      return (
+        tx.userID.toString().includes(filters.search) ||
+        tx.userName.toLowerCase().includes(term) ||
+        tx.type_name.toLowerCase().includes(term) ||
+        tx.productName.toLowerCase().includes(term)
+      );
+    };
+
+    try {
+      setExportingCsv(true);
+
+      let firstUrl = `${apiHost}/transactions/user/${userId}?page=1&per_page=${itemsPerPage}`;
+      if (filters.startDate) firstUrl += `&start_date=${filters.startDate}`;
+      if (filters.endDate) firstUrl += `&end_date=${filters.endDate}`;
+
+      const firstRes = await fetch(firstUrl, {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!firstRes.ok) {
+        let errorMessage = "";
+        try {
+          const errorData = await firstRes.json();
+          errorMessage = errorData.message || errorData.error || "";
+        } catch (e) {
+          errorMessage = await firstRes.text();
+        }
+
+        const friendlyMessage = interpretApiError(errorMessage, firstRes.status, "transaction");
+        enqueueSnackbar(friendlyMessage, { variant: "error" });
+        return;
+      }
+
+      const firstJson = await firstRes.json();
+      const pages = firstJson.total_pages || 1;
+      let allRawTransactions = [...(firstJson.transactions || [])];
+
+      if (pages > 1) {
+        const pageRequests = [];
+        for (let currentPage = 2; currentPage <= pages; currentPage += 1) {
+          let pageUrl = `${apiHost}/transactions/user/${userId}?page=${currentPage}&per_page=${itemsPerPage}`;
+          if (filters.startDate) pageUrl += `&start_date=${filters.startDate}`;
+          if (filters.endDate) pageUrl += `&end_date=${filters.endDate}`;
+
+          pageRequests.push(
+            fetch(pageUrl, {
+              method: "GET",
+              headers: {
+                accept: "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            }).then(async (res) => {
+              if (!res.ok) return [];
+              const json = await res.json();
+              return json.transactions || [];
+            })
+          );
+        }
+
+        const pagesResult = await Promise.all(pageRequests);
+        allRawTransactions = allRawTransactions.concat(pagesResult.flat());
+      }
+
+      const productIds = [...new Set(
+        allRawTransactions
+          .map((t) => Number(t.product_id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      )];
+
+      const missingProductIds = productIds.filter((id) => !transactionProductsById[id]);
+      let fetchedProductsById = {};
+
+      if (missingProductIds.length > 0) {
+        const productResponses = await Promise.all(
+          missingProductIds.map(async (productId) => {
+            try {
+              const productRes = await fetch(`${apiHost}/products/${productId}`, {
+                method: "GET",
+                headers: {
+                  accept: "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+
+              if (!productRes.ok) return null;
+
+              const productJson = await productRes.json();
+              return {
+                id: productId,
+                name: productJson?.name || "-",
+              };
+            } catch (error) {
+              console.error(`Erro ao buscar produto ${productId} no export:`, error);
+              return null;
+            }
+          })
+        );
+
+        fetchedProductsById = productResponses.reduce((acc, item) => {
+          if (item?.id) {
+            acc[item.id] = item.name;
+          }
+          return acc;
+        }, {});
+
+        if (Object.keys(fetchedProductsById).length > 0) {
+          setTransactionProductsById((prev) => ({ ...prev, ...fetchedProductsById }));
+        }
+      }
+
+      const productsById = { ...transactionProductsById, ...fetchedProductsById };
+
+      const mapped = allRawTransactions.map((t) => ({
+        id: t.id,
+        userID: t.user_id || t.user?.id || "",
+        userName: t.user?.username || `Usuário ${t.user_id}`,
+        userEmail: t.user?.email || "",
+        type_name: (t.type && t.type.name) || t.type_name || "",
+        points: t.points || 0,
+        payment_method_name: t.payment_method?.name || "",
+        productID: t.product_id || null,
+        productName: t.product?.name || productsById[t.product_id] || "-",
+        created_at: t.created_at || "",
+      }));
+
+      const exportRows = mapped.filter(applySearchFilter);
+
+      const header = [
+        "id",
+        "usuario_id",
+        "usuario_nome",
+        "usuario_email",
+        "tipo_transacao",
+        "produto_id",
+        "produto_nome",
+        "metodo_pagamento",
+        "pontos",
+        "data_criacao",
+      ];
+
+      const lines = [
+        header.map(escapeCsvValue).join(","),
+        ...exportRows.map((row) => [
+          row.id,
+          row.userID,
+          row.userName,
+          row.userEmail,
+          row.type_name,
+          row.productID || "",
+          row.productName,
+          row.payment_method_name,
+          row.points,
+          row.created_at,
+        ].map(escapeCsvValue).join(",")),
+      ];
+
+      const csvContent = `\uFEFF${lines.join("\n")}`;
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fileDate = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.setAttribute("download", `transacoes-policoins-${fileDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      enqueueSnackbar(`CSV exportado com ${exportRows.length} transações.`, { variant: "success" });
+    } catch (error) {
+      console.error("Erro ao exportar CSV:", error);
+      enqueueSnackbar("Erro ao exportar CSV. Tente novamente.", { variant: "error" });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
   // Filtrar transações (sem paginação, pois já vem da API)
   const filteredTransactions = transactions.filter((t) => {
     if (
@@ -786,7 +1039,7 @@ export default function TransactionsPage() {
       {/* Filtros */}
       <FilterCard>
         <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={2}>
             <TextField
               fullWidth
               size="small"
@@ -797,7 +1050,7 @@ export default function TransactionsPage() {
               placeholder="Nome, tipo, produto..."
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={2}>
             <Select
               fullWidth
               size="small"
@@ -817,7 +1070,7 @@ export default function TransactionsPage() {
               ))}
             </Select>
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={2}>
             <TextField
               fullWidth
               size="small"
@@ -829,7 +1082,7 @@ export default function TransactionsPage() {
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={2}>
             <TextField
               fullWidth
               size="small"
@@ -841,7 +1094,23 @@ export default function TransactionsPage() {
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={2}>
+            <Button
+              fullWidth
+              variant="outlined"
+              color="primary"
+              startIcon={exportingCsv ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+              onClick={handleExportCsv}
+              disabled={exportingCsv || fetching}
+              sx={{
+                fontSize: { xs: "12px", sm: "14px" },
+                padding: { xs: "8px 12px", sm: "10px 16px" },
+              }}
+            >
+              {exportingCsv ? "Exportando..." : "Exportar CSV"}
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
             <Button
               fullWidth
               variant="contained"
