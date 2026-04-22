@@ -26,8 +26,6 @@ import {
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
 import DownloadIcon from "@mui/icons-material/Download";
 import { useSnackbar } from "notistack";
 import * as XLSX from "xlsx";
@@ -127,26 +125,76 @@ export default function ImportPolicoins() {
     const [loading, setLoading] = useState(false);
     const [importStatus, setImportStatus] = useState(null);
     const [selectedTypeId, setSelectedTypeId] = useState(1);
+    const [apiResponseLog, setApiResponseLog] = useState("");
+    const [apiResponseSeverity, setApiResponseSeverity] = useState("info");
+    const [isDragging, setIsDragging] = useState(false);
+
+    const isValidSpreadsheetFile = (selectedFile) => {
+        if (!selectedFile) return false;
+
+        const validTypes = [
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+            "text/csv",
+            "application/csv",
+        ];
+
+        const lowerName = (selectedFile.name || "").toLowerCase();
+        const hasValidExtension =
+            lowerName.endsWith(".csv") ||
+            lowerName.endsWith(".xlsx") ||
+            lowerName.endsWith(".xls");
+
+        // Alguns navegadores retornam file.type vazio ao arrastar arquivo.
+        return validTypes.includes(selectedFile.type) || hasValidExtension;
+    };
+
+    const handleAcceptedFile = (selectedFile) => {
+        if (!isValidSpreadsheetFile(selectedFile)) {
+            enqueueSnackbar("Por favor, selecione um arquivo CSV ou XLSX válido", {
+                variant: "error",
+            });
+            return;
+        }
+
+        setFile(selectedFile);
+        parseFile(selectedFile);
+    };
 
     const handleFileSelect = (event) => {
         const selectedFile = event.target.files?.[0];
-        if (selectedFile) {
-            const validTypes = [
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.ms-excel",
-                "text/csv",
-            ];
+        if (!selectedFile) return;
+        handleAcceptedFile(selectedFile);
+    };
 
-            if (!validTypes.includes(selectedFile.type)) {
-                enqueueSnackbar("Por favor, selecione um arquivo CSV ou XLSX válido", {
-                    variant: "error",
-                });
-                return;
-            }
-
-            setFile(selectedFile);
-            parseFile(selectedFile);
+    const handleDragOver = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isDragging) {
+            setIsDragging(true);
         }
+    };
+
+    const handleDragLeave = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+
+        const droppedFile = event.dataTransfer?.files?.[0];
+        if (!droppedFile) {
+            enqueueSnackbar("Nenhum arquivo detectado no arraste", {
+                variant: "warning",
+            });
+            return;
+        }
+
+        handleAcceptedFile(droppedFile);
     };
 
     const parseFile = (selectedFile) => {
@@ -215,12 +263,19 @@ export default function ImportPolicoins() {
     };
 
     const handleImport = async () => {
+        if (!file) {
+            enqueueSnackbar("Nenhum arquivo selecionado", { variant: "warning" });
+            return;
+        }
+
         if (data.length === 0) {
             enqueueSnackbar("Nenhum dado para importar", { variant: "warning" });
             return;
         }
 
         setLoading(true);
+        setApiResponseLog("");
+        setImportStatus(null);
 
         try {
             // Validar dados
@@ -235,33 +290,72 @@ export default function ImportPolicoins() {
                 return;
             }
 
-            // Simular chamada à API
-            // await axios.post("/transactions/upload", {
-            //   file: file,
-            //   type_id: selectedTypeId
-            // });
+            const token = localStorage.getItem("accessToken");
+            if (!token) {
+                enqueueSnackbar("Token não encontrado. Faça login novamente.", { variant: "warning" });
+                return;
+            }
+
+            const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+            const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const response = await fetch(
+                `${apiHost}/transactions/upload?type_id=${selectedTypeId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        accept: "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: formData,
+                }
+            );
+
+            const responseText = await response.text();
+            let responsePayload = null;
+
+            try {
+                responsePayload = responseText ? JSON.parse(responseText) : null;
+            } catch (e) {
+                responsePayload = null;
+            }
+
+            const formattedResponse = responsePayload
+                ? JSON.stringify(responsePayload, null, 2)
+                : responseText || "Sem conteúdo de resposta";
+
+            setApiResponseLog(formattedResponse);
+            setApiResponseSeverity(response.ok ? "success" : "error");
+
+            if (!response.ok) {
+                const apiErrorMessage =
+                    responsePayload?.error ||
+                    responsePayload?.message ||
+                    "Erro ao importar dados";
+
+                enqueueSnackbar(apiErrorMessage, { variant: "error" });
+                return;
+            }
 
             setImportStatus({
-                total: validatedData.length,
-                success: validatedData.length,
-                errors: data.length - validatedData.length,
+                total: responsePayload?.total || validatedData.length,
+                success: responsePayload?.success || validatedData.length,
+                errors: responsePayload?.errors || data.length - validatedData.length,
             });
 
             enqueueSnackbar(
-                `${validatedData.length} transações importadas com sucesso!`,
+                responsePayload?.message || `${validatedData.length} transações importadas com sucesso!`,
                 { variant: "success" }
             );
 
-            // Limpar dados após sucesso
-            setTimeout(() => {
-                setFile(null);
-                setData([]);
-                setPreview([]);
-                setOpenPreview(false);
-                setImportStatus(null);
-            }, 2000);
+            setOpenPreview(false);
         } catch (error) {
             console.error("Erro ao importar:", error);
+            setApiResponseSeverity("error");
+            setApiResponseLog(error?.message || "Erro inesperado ao importar dados");
             enqueueSnackbar("Erro ao importar dados", { variant: "error" });
         } finally {
             setLoading(false);
@@ -316,6 +410,24 @@ export default function ImportPolicoins() {
                     <AlertTitle>Importação Concluída!</AlertTitle>
                     {importStatus.success} registros importados com sucesso
                     {importStatus.errors > 0 && ` • ${importStatus.errors} registros ignorados`}
+                </Alert>
+            )}
+
+            {apiResponseLog && (
+                <Alert severity={apiResponseSeverity} sx={{ mb: 3 }}>
+                    <AlertTitle>Resposta da API</AlertTitle>
+                    <Typography
+                        component="pre"
+                        sx={{
+                            margin: 0,
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            fontFamily: "monospace",
+                            fontSize: "12px",
+                        }}
+                    >
+                        {apiResponseLog}
+                    </Typography>
                 </Alert>
             )}
 
@@ -377,7 +489,16 @@ export default function ImportPolicoins() {
             {/* Card de Upload */}
             <SimpleCard title="Importar Transações via Planilha">
                 <Box component="label" htmlFor="file-upload" sx={{ display: "block" }}>
-                    <UploadCard>
+                    <UploadCard
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        sx={{
+                            borderColor: isDragging ? "#764ba2" : "#667eea",
+                            backgroundColor: isDragging ? "#ececff" : "#f8f9ff",
+                            transform: isDragging ? "scale(1.01)" : "scale(1)",
+                        }}
+                    >
                         <CloudUploadIcon sx={{ fontSize: 48, color: "#667eea", mb: 2 }} />
                         <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
                             {file ? file.name : "Clique ou arraste uma planilha aqui"}
