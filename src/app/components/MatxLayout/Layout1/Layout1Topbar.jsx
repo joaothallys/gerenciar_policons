@@ -12,12 +12,10 @@ import PowerSettingsNew from "@mui/icons-material/PowerSettingsNew";
 
 import useAuth from "app/hooks/useAuth";
 import useSettings from "app/hooks/useSettings";
-import { NotificationProvider } from "app/contexts/NotificationContext";
 
 import { Span } from "app/components/Typography";
 import ShoppingCart from "app/components/ShoppingCart";
 import { MatxMenu, MatxSearchBox } from "app/components";
-import { NotificationBar } from "app/components/NotificationBar";
 import { themeShadows } from "app/components/MatxTheme/themeColors";
 import { topBarHeight } from "app/utils/constant";
 
@@ -145,10 +143,6 @@ const Layout1Topbar = () => {
         <Box display="flex"></Box>
         <Box display="flex" alignItems="center">
           <MatxSearchBox />
-
-          <NotificationProvider>
-            <NotificationBar />
-          </NotificationProvider>
 
           <ShoppingCart />
 

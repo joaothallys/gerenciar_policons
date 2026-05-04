@@ -12,7 +12,6 @@ import Layout1Sidenav from "./Layout1Sidenav";
 import Footer from "app/components/Footer";
 import { MatxSuspense } from "app/components";
 import useSettings from "app/hooks/useSettings";
-import { SecondarySidebar } from "app/components/SecondarySidebar";
 import SidenavTheme from "app/components/MatxTheme/SidenavTheme/SidenavTheme";
 import { sidenavCompactWidth, sideNavWidth } from "app/utils/constant";
 
@@ -100,7 +99,7 @@ const Layout1 = () => {
         </SidenavTheme>
       )}
 
-      <LayoutContainer width={sidenavWidth} open={secondarySidebar.open}>
+      <LayoutContainer width={sidenavWidth} open={false}>
         {layout1Settings.topbar.show && layout1Settings.topbar.fixed && (
           <ThemeProvider theme={topbarTheme}>
             <Layout1Topbar fixed={true} className="elevation-z8" />
@@ -145,8 +144,6 @@ const Layout1 = () => {
 
         {settings.footer.show && settings.footer.fixed && <Footer />}
       </LayoutContainer>
-
-      {settings.secondarySidebar.show && <SecondarySidebar />}
     </Layout1Root>
   );
 };
