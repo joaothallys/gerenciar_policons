@@ -1,18 +1,30 @@
 import { lazy } from "react";
 import Loadable from "app/components/Loadable";
 
-const TransactionsPage = Loadable(lazy(() => import("app/views/transactions/TransactionsPage")));
-const UsersPage = Loadable(lazy(() => import("app/views/users/UsersPage")));
-const ProductsPage = Loadable(lazy(() => import("app/views/products/ProductsPage")));
-const ImportPage = Loadable(lazy(() => import("app/views/import/ImportPage")));
-const MetasPage = Loadable(lazy(() => import("app/views/metas/MetasPage")));
+//const AppIcon = Loadable(lazy(() => import("./icons/AppIcon")));
+const AppProgress = Loadable(lazy(() => import("./AppProgress")));
+//const AppRadio = Loadable(lazy(() => import("./radio/AppRadio")));
+//const AppTable = Loadable(lazy(() => import("./tables/AppTable")));
+const AppSwitch = Loadable(lazy(() => import("./switch/AppSwitch")));
+//const AppSlider = Loadable(lazy(() => import("./slider/AppSlider")));
+const AppButton = Loadable(lazy(() => import("./gerenciamento/manage")));
+//const AppSnackbar = Loadable(lazy(() => import("./snackbar/AppSnackbar")));
+const AppAutoComplete = Loadable(lazy(() => import("./auto-complete/AppAutoComplete")));
+const ImportPolicoins = Loadable(lazy(() => import("./import-policoins/ImportPolicoins")));
+const MonthlyMetas = Loadable(lazy(() => import("./DatePicker")));
 
 const materialRoutes = [
-  { path: "/transactions", element: <TransactionsPage /> },
-  { path: "/users", element: <UsersPage /> },
-  { path: "/products", element: <ProductsPage /> },
-  { path: "/import", element: <ImportPage /> },
-  { path: "/metas", element: <MetasPage /> },
+  //{ path: "/material/table", element: <AppTable /> },
+  { path: "/material/manage", element: <AppButton /> },
+  //{ path: "/material/icons", element: <AppIcon /> },
+  { path: "/material/products", element: <AppProgress /> },
+  { path: "/material/switch", element: <AppSwitch /> },
+  //{ path: "/material/radio", element: <AppRadio /> },
+  //{ path: "/material/slider", element: <AppSlider /> },
+  { path: "/material/customer", element: <AppAutoComplete /> },
+  { path: "/material/import", element: <ImportPolicoins /> },
+  { path: "/material/metas", element: <MonthlyMetas /> },
+  //{ path: "/material/snackbar", element: <AppSnackbar /> }
 ];
 
 export default materialRoutes;

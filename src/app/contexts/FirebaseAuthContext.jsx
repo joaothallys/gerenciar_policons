@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { authService } from "app/services/authService";
+import authService from "__api__/db/auth";
 
 const AuthContext = createContext();
 
@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
           payload: { user: null, role: null },
         });
 
-        navigate("/transactions");
+        navigate("/material/customer");
       } else {
         // Caso o login falhe
         throw new Error(response.message || "Erro ao fazer login.");

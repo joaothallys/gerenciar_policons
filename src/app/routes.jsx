@@ -8,7 +8,7 @@ import sessionRoutes from "./views/sessions/session-routes";
 import materialRoutes from "app/views/material-kit/MaterialRoutes";
 
 const routes = [
-  { path: "/", element: <Navigate to="/transactions" /> },
+  { path: "/", element: <Navigate to="/material/customer" /> },
   {
     element: (
       <AuthGuard>
