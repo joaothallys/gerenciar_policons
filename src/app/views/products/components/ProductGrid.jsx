@@ -86,13 +86,13 @@ export default function ProductGrid({
               )}
             </CardContent>
 
-            <CardActions sx={{ pt: 0 }}>
+            <CardActions sx={{ pt: 0, gap: 1, flexWrap: "wrap" }}>
               <Button
                 size="small"
                 variant="outlined"
                 startIcon={<EditIcon fontSize="small" />}
                 onClick={() => onEdit(product)}
-                fullWidth
+                sx={{ flex: "1 1 calc(50% - 4px)", minWidth: 0 }}
               >
                 Editar
               </Button>
@@ -103,6 +103,7 @@ export default function ProductGrid({
                   color="warning"
                   startIcon={<StorageIcon fontSize="small" />}
                   onClick={() => onOpenStock(product.id)}
+                  sx={{ flex: "1 1 calc(50% - 4px)", minWidth: 0 }}
                 >
                   Estoque
                 </Button>
@@ -113,6 +114,7 @@ export default function ProductGrid({
                 color="error"
                 startIcon={<DeleteIcon fontSize="small" />}
                 onClick={() => onDelete(product.id)}
+                sx={{ flex: "1 1 calc(50% - 4px)", minWidth: 0 }}
               >
                 Deletar
               </Button>

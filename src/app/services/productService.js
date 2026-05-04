@@ -71,9 +71,12 @@ export const productService = {
   // Update product stock
   updateStock: async (productId, quantity) => {
     try {
-      const response = await api.post("/stocks", {
-        product_id: productId,
-        quantity,
+      const formData = new FormData();
+      formData.append("product_id", productId);
+      formData.append("quantity", quantity);
+
+      const response = await api.post("/stocks", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
       return response.data;
     } catch (error) {

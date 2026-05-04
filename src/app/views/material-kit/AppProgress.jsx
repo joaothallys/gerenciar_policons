@@ -287,21 +287,22 @@ export default function ProductsPage() {
                 return;
             }
 
-            const formDataToSend = new FormData();
-            formDataToSend.append("product_id", selectedProduct.id);
-            formDataToSend.append("quantity", stockQuantity);
-
-            const apiHost = import.meta.env.VITE_REACT_APP_API_HOST;
+            const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+            const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
             const res = await fetch(`${apiHost}/stocks`, {
                 method: "POST",
                 headers: {
+                    "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: formDataToSend,
+                body: JSON.stringify({
+                    product_id: selectedProduct.id,
+                    quantity: parseInt(stockQuantity),
+                }),
             });
 
             if (!res.ok) {
-                const responsePayload = await extractApiResponsePayload(res);
+                const responsePayload = await extractApiResponsePayload(res.clone());
                 const error = responsePayload.message || responsePayload.raw;
                 const friendlyMessage = interpretApiError(error, res.status, "stock");
                 showErrorPopup(friendlyMessage, "Falha ao atualizar estoque", responsePayload.raw);

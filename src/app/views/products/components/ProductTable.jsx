@@ -90,14 +90,14 @@ export default function ProductTable({
                     <Box color="textSecondary">—</Box>
                   )}
                 </TableCell>
-                <TableCell align="center">
+                <TableCell align="center" sx={{ minWidth: "280px" }}>
                   <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center", flexWrap: "wrap" }}>
                     <Button
                       size="small"
                       variant="outlined"
                       startIcon={<EditIcon fontSize="small" />}
                       onClick={() => onEdit(product)}
-                      sx={{ fontSize: "11px", padding: "3px 6px" }}
+                      sx={{ flex: "1 1 auto", minWidth: "70px", fontSize: "12px", whiteSpace: "nowrap" }}
                     >
                       Editar
                     </Button>
@@ -108,7 +108,7 @@ export default function ProductTable({
                         color="warning"
                         startIcon={<StorageIcon fontSize="small" />}
                         onClick={() => onOpenStock(product.id)}
-                        sx={{ fontSize: "11px", padding: "3px 6px" }}
+                        sx={{ flex: "1 1 auto", minWidth: "70px", fontSize: "12px", whiteSpace: "nowrap" }}
                       >
                         Estoque
                       </Button>
@@ -119,7 +119,7 @@ export default function ProductTable({
                       color="error"
                       startIcon={<DeleteIcon fontSize="small" />}
                       onClick={() => onDelete(product.id)}
-                      sx={{ fontSize: "11px", padding: "3px 6px" }}
+                      sx={{ flex: "1 1 auto", minWidth: "70px", fontSize: "12px", whiteSpace: "nowrap" }}
                     >
                       Deletar
                     </Button>
