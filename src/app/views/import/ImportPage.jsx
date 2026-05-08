@@ -1,12 +1,13 @@
-import { Box, Button, Card, CircularProgress, Alert, AlertTitle, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
+import { Box, Button, Card, CircularProgress, Alert, AlertTitle, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select, MenuItem, Grid, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { styled } from "@mui/material/styles";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useSnackbar } from "notistack";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
 import * as XLSX from "xlsx";
-import { transactionService } from "app/services/transactionService";
-import { interpretApiError } from "app/utils/apiErrorHandler";
 
 const Container = styled("div")(({ theme }) => ({
   margin: "30px",
@@ -17,7 +18,7 @@ const Container = styled("div")(({ theme }) => ({
   },
 }));
 
-const UploadCard = styled(Card)(({ theme }) => ({
+const UploadCard = styled(Card)({
   padding: "40px",
   textAlign: "center",
   backgroundColor: "rgba(102, 126, 234, 0.05)",
@@ -36,24 +37,30 @@ const UploadCard = styled(Card)(({ theme }) => ({
     outline: "none !important",
     boxShadow: "none !important",
   },
-  [theme.breakpoints.down("sm")]: {
-    padding: "24px",
-  },
-}));
+});
+
+const TRANSACTION_TYPES = [
+  { id: 1, name: "Pontos Ganhos - Meta" },
+  { id: 2, name: "Pontos Ganhos - Trimestral" },
+  { id: 3, name: "Pontos Ganhos - Jogos" },
+  { id: 4, name: "Pontos Perdidos - Frequência" },
+  { id: 5, name: "Pontos Perdidos - Organização" },
+  { id: 6, name: "Pontos Perdidos - Trimestral" },
+  { id: 7, name: "Pontos Gastos - Loja" },
+];
 
 export default function ImportPage() {
   const { enqueueSnackbar } = useSnackbar();
+  const fileInputRef = useRef(null);
+  const [file, setFile] = useState(null);
   const [preview, setPreview] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [selectedTypeId, setSelectedTypeId] = useState(1);
+  const [responseDialog, setResponseDialog] = useState({ open: false, success: false, message: "", statusCode: null });
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validar formato
+  const handleFileSelect = (selectedFile) => {
     const validFormats = [".xlsx", ".xls", ".csv"];
-    const fileName = file.name.toLowerCase();
+    const fileName = selectedFile.name.toLowerCase();
     const isValidFormat = validFormats.some((fmt) => fileName.endsWith(fmt));
 
     if (!isValidFormat) {
@@ -63,8 +70,9 @@ export default function ImportPage() {
       return;
     }
 
+    setFile(selectedFile);
+
     try {
-      setLoading(true);
       const reader = new FileReader();
       reader.onload = (event) => {
         const data = event.target?.result;
@@ -73,7 +81,6 @@ export default function ImportPage() {
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet);
 
-        // Validar colunas obrigatórias
         if (rows.length === 0) {
           enqueueSnackbar("Arquivo vazio", { variant: "warning" });
           return;
@@ -91,45 +98,88 @@ export default function ImportPage() {
           return;
         }
 
-        // Mostrar preview dos primeiros 5 registros
         setPreview(rows.slice(0, 5));
         enqueueSnackbar(
           `${rows.length} registro(s) detectado(s). Mostrando preview dos 5 primeiros.`,
           { variant: "info" }
         );
       };
-      reader.readAsArrayBuffer(file);
+      reader.readAsArrayBuffer(selectedFile);
     } catch (error) {
       enqueueSnackbar("Erro ao processar arquivo", { variant: "error" });
       console.error("Error:", error);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFile(null);
+    setPreview([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
   const handleImport = async () => {
-    if (preview.length === 0) {
+    if (!file || preview.length === 0) {
       enqueueSnackbar("Nenhum arquivo selecionado", { variant: "warning" });
       return;
     }
 
     try {
       setUploading(true);
-      // TODO: Implementar upload em lote
-      // Por agora, apenas simular
-      enqueueSnackbar("Importação iniciada...", { variant: "info" });
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      enqueueSnackbar("Importação concluída com sucesso!", {
-        variant: "success",
+
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        enqueueSnackbar("Token não encontrado. Faça login novamente.", {
+          variant: "warning",
+        });
+        return;
+      }
+
+      const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+      const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        `${apiHost}/transactions/upload?type_id=${selectedTypeId}`,
+        {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMessage =
+          responseData?.error || responseData?.message || "Erro ao importar dados";
+        setResponseDialog({
+          open: true,
+          success: false,
+          message: errorMessage,
+          statusCode: response.status,
+        });
+        return;
+      }
+
+      setResponseDialog({
+        open: true,
+        success: true,
+        message: responseData?.message || `${preview.length} transações importadas com sucesso!`,
+        statusCode: response.status,
       });
+      setFile(null);
       setPreview([]);
     } catch (error) {
-      const message = interpretApiError(
-        error.message,
-        error.response?.status,
-        "import"
-      );
-      enqueueSnackbar(message, { variant: "error" });
+      enqueueSnackbar(error?.message || "Erro ao importar dados", {
+        variant: "error",
+      });
     } finally {
       setUploading(false);
     }
@@ -146,6 +196,41 @@ export default function ImportPage() {
           ]}
         />
       </Box>
+
+      {/* Card de Seleção de Tipo */}
+      <Card elevation={0} sx={{ p: 3, mb: 3, border: "1px solid #e0e0e0" }}>
+        <Grid container spacing={2} alignItems="flex-end">
+          <Grid item xs={12} sm={8}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              Tipo de Transação *
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+              Selecione o tipo de transação que será importada
+            </Typography>
+            <Select
+              fullWidth
+              value={selectedTypeId}
+              onChange={(e) => setSelectedTypeId(e.target.value)}
+            >
+              {TRANSACTION_TYPES.map((type) => (
+                <MenuItem key={type.id} value={type.id}>
+                  {type.id} - {type.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Box sx={{ p: 2, backgroundColor: "#f5f5f5", borderRadius: 1 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                Tipo Selecionado:
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
+                {TRANSACTION_TYPES.find((t) => t.id === selectedTypeId)?.name}
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      </Card>
 
       {/* Upload Area */}
       <SimpleCard title="Importar Transações">
@@ -172,25 +257,34 @@ export default function ImportPage() {
             </Button>
           </Box>
           <input
+            ref={fileInputRef}
             hidden
             type="file"
             accept=".xlsx,.xls,.csv"
-            onChange={handleFileSelect}
+            onChange={(e) => {
+              const selectedFile = e.target.files?.[0];
+              if (selectedFile) handleFileSelect(selectedFile);
+            }}
             style={{ outline: "none" }}
           />
         </UploadCard>
 
-        {loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", my: 3 }}>
-            <CircularProgress />
-          </Box>
-        )}
-
         {preview.length > 0 && (
           <>
             <Box sx={{ mb: 3 }}>
-              <Box sx={{ fontSize: "16px", fontWeight: 600, mb: 2 }}>
-                Preview dos 5 primeiros registros
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                <Box sx={{ fontSize: "16px", fontWeight: 600 }}>
+                  Preview dos 5 primeiros registros
+                </Box>
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={handleRemoveFile}
+                  disabled={uploading}
+                  title="Remover arquivo"
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
               </Box>
               <TableContainer>
                 <Table size="small">
@@ -214,19 +308,63 @@ export default function ImportPage() {
               </TableContainer>
             </Box>
 
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleImport}
-              disabled={uploading}
-              fullWidth
-              sx={{ py: 1.5 }}
-            >
-              {uploading ? <CircularProgress size={24} /> : "Importar Arquivo"}
-            </Button>
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleRemoveFile}
+                disabled={uploading}
+                sx={{ flex: 1 }}
+              >
+                Remover
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleImport}
+                disabled={uploading}
+                sx={{ flex: 1, py: 1.5 }}
+              >
+                {uploading ? <CircularProgress size={24} /> : "Importar Arquivo"}
+              </Button>
+            </Box>
           </>
         )}
       </SimpleCard>
+
+      {/* Response Dialog */}
+      <Dialog open={responseDialog.open} onClose={() => setResponseDialog({ ...responseDialog, open: false })} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ pb: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {responseDialog.success ? (
+              <CheckCircleIcon sx={{ color: "#4caf50", fontSize: 28 }} />
+            ) : (
+              <ErrorIcon sx={{ color: "#f44336", fontSize: 28 }} />
+            )}
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              {responseDialog.success ? "Sucesso!" : "Erro"}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            {responseDialog.message}
+          </Typography>
+          <Box sx={{ p: 1.5, backgroundColor: "#f5f5f5", borderRadius: 1 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, display: "block", mb: 0.5 }}>
+              Código da Resposta:
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: "monospace", fontWeight: 500 }}>
+              {responseDialog.statusCode}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResponseDialog({ ...responseDialog, open: false })} variant="contained" color={responseDialog.success ? "success" : "error"}>
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
