@@ -20,14 +20,21 @@ const Container = styled("div")(({ theme }) => ({
 const UploadCard = styled(Card)(({ theme }) => ({
   padding: "40px",
   textAlign: "center",
-  border: "2px dashed #667eea",
+  backgroundColor: "rgba(102, 126, 234, 0.05)",
   borderRadius: "12px",
   cursor: "pointer",
   transition: "all 0.3s ease",
   marginBottom: "30px",
+  border: "none !important",
+  boxShadow: "none !important",
+  outline: "none !important",
   "&:hover": {
-    borderColor: "#764ba2",
-    backgroundColor: "rgba(102, 126, 234, 0.05)",
+    backgroundColor: "rgba(102, 126, 234, 0.1)",
+    boxShadow: "none !important",
+  },
+  "&:focus": {
+    outline: "none !important",
+    boxShadow: "none !important",
   },
   [theme.breakpoints.down("sm")]: {
     padding: "24px",
@@ -134,41 +141,44 @@ export default function ImportPage() {
       <Box className="breadcrumb">
         <Breadcrumb
           routeSegments={[
-            { name: "Importar Policoins", path: "/import" },
-            { name: "Importar" },
+            { name: "Ferramentas", path: "/transactions" },
+            { name: "Importar Transações" },
           ]}
         />
       </Box>
 
       {/* Upload Area */}
       <SimpleCard title="Importar Transações">
-        <UploadCard component="label">
-          <CloudUploadIcon sx={{ fontSize: 48, color: "#667eea", mb: 2 }} />
-          <Box sx={{ fontSize: "18px", fontWeight: 600, mb: 1 }}>
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <AlertTitle>Formato esperado</AlertTitle>
+          O arquivo deve conter as colunas: <strong>email, data, points</strong>
+        </Alert>
+
+        <UploadCard component="label" elevation={0}>
+          <Box sx={{ fontSize: "16px", fontWeight: 600, mb: 1 }}>
             Clique ou arraste um arquivo
           </Box>
-          <Box sx={{ fontSize: "14px", color: "text.secondary", mb: 2 }}>
+          <Box sx={{ fontSize: "13px", color: "text.secondary", mb: 3 }}>
             Suporta: XLSX, XLS, CSV
           </Box>
-          <Button
-            variant="contained"
-            component="span"
-            startIcon={<CloudUploadIcon />}
-          >
-            Selecionar Arquivo
-          </Button>
+          <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Button
+              variant="contained"
+              color="primary"
+              component="span"
+              startIcon={<CloudUploadIcon fontSize="small" />}
+            >
+              Selecionar Arquivo
+            </Button>
+          </Box>
           <input
             hidden
             type="file"
             accept=".xlsx,.xls,.csv"
             onChange={handleFileSelect}
+            style={{ outline: "none" }}
           />
         </UploadCard>
-
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <AlertTitle>Formato esperado</AlertTitle>
-          O arquivo deve conter as colunas: <strong>email, data, points</strong>
-        </Alert>
 
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "center", my: 3 }}>

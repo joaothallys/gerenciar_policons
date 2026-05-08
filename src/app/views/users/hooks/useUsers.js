@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { useSnackbar } from "notistack";
+import { toast } from "react-toastify";
 import { userService } from "app/services/userService";
 import { interpretApiError } from "app/utils/apiErrorHandler";
 import { USER_ROLES } from "app/constants";
 
 export const useUsers = () => {
-  const { enqueueSnackbar } = useSnackbar();
 
   // Main data states
   const [users, setUsers] = useState([]);
@@ -30,6 +29,11 @@ export const useUsers = () => {
     username: "",
     password: "",
     role_id: "1",
+  });
+  const [formErrors, setFormErrors] = useState({
+    email: "",
+    username: "",
+    password: "",
   });
 
   // Loading states
@@ -61,12 +65,9 @@ export const useUsers = () => {
         }));
 
       setUsers(mapped);
-      enqueueSnackbar(`${mapped.length} usuário(s) carregado(s)`, {
-        variant: "success",
-      });
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "user");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       console.error("Error fetching users:", error);
     } finally {
       setFetching(false);
@@ -144,27 +145,86 @@ export const useUsers = () => {
     setSelectedUser(null);
   };
 
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Validação em tempo real para email
+    if (name === "email") {
+      if (!value) {
+        setFormErrors((prev) => ({ ...prev, email: "" }));
+      } else if (!validateEmail(value)) {
+        setFormErrors((prev) => ({ ...prev, email: "Email inválido" }));
+      } else {
+        setFormErrors((prev) => ({ ...prev, email: "" }));
+      }
+    }
+
+    // Validação para username
+    if (name === "username") {
+      if (!value) {
+        setFormErrors((prev) => ({ ...prev, username: "" }));
+      } else if (value.length < 3) {
+        setFormErrors((prev) => ({ ...prev, username: "Mínimo 3 caracteres" }));
+      } else {
+        setFormErrors((prev) => ({ ...prev, username: "" }));
+      }
+    }
+
+    // Validação para password (apenas em create)
+    if (name === "password" && dialogMode === "create") {
+      if (!value) {
+        setFormErrors((prev) => ({ ...prev, password: "" }));
+      } else if (value.length < 6) {
+        setFormErrors((prev) => ({ ...prev, password: "Mínimo 6 caracteres" }));
+      } else {
+        setFormErrors((prev) => ({ ...prev, password: "" }));
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     setLoading(true);
 
     try {
-      // Validation
+      // Validação de campos vazios
       if (!formData.email || !formData.username) {
-        enqueueSnackbar("Preencha email e username", { variant: "warning" });
+        toast.warning("Preencha email e username");
+        setLoading(false);
+        return;
+      }
+
+      // Validação de email
+      if (!validateEmail(formData.email)) {
+        toast.error("Email inválido. Formato: exemplo@dominio.com");
+        setLoading(false);
+        return;
+      }
+
+      // Validação de username
+      if (formData.username.length < 3) {
+        toast.error("Username deve ter mínimo 3 caracteres");
         setLoading(false);
         return;
       }
 
       if (dialogMode === "create" && !formData.password) {
-        enqueueSnackbar("Senha é obrigatória para novo usuário", {
-          variant: "warning",
-        });
+        toast.warning("Senha é obrigatória para novo usuário");
+        setLoading(false);
+        return;
+      }
+
+      // Validação de password em create
+      if (dialogMode === "create" && formData.password.length < 6) {
+        toast.error("Senha deve ter mínimo 6 caracteres");
         setLoading(false);
         return;
       }
@@ -181,19 +241,17 @@ export const useUsers = () => {
 
       if (dialogMode === "create") {
         await userService.create(submitData);
-        enqueueSnackbar("Usuário criado com sucesso!", { variant: "success" });
+        toast.success("Usuário criado com sucesso!");
       } else if (dialogMode === "edit" && selectedUser) {
         await userService.update(selectedUser.id, submitData);
-        enqueueSnackbar("Usuário atualizado com sucesso!", {
-          variant: "success",
-        });
+        toast.success("Usuário atualizado com sucesso!");
       }
 
       handleCloseDialog();
       await fetchUsers();
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "user");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       console.error("Error saving user:", error);
     } finally {
       setLoading(false);
@@ -205,16 +263,14 @@ export const useUsers = () => {
   };
 
   const handleDelete = async (userId) => {
-    if (!window.confirm("Deseja deletar este usuário?")) return;
-
     try {
       setLoading(true);
       await userService.remove(userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
-      enqueueSnackbar("Usuário deletado com sucesso!", { variant: "success" });
+      toast.success("Usuário deletado com sucesso!");
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "user");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       console.error("Error deleting user:", error);
     } finally {
       setLoading(false);
@@ -228,10 +284,10 @@ export const useUsers = () => {
     try {
       setLoading(true);
       await userService.changePassword(userId, newPassword);
-      enqueueSnackbar("Senha alterada com sucesso!", { variant: "success" });
+      toast.success("Senha alterada com sucesso!");
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "user");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -256,6 +312,7 @@ export const useUsers = () => {
     dialogMode,
     selectedUser,
     formData,
+    formErrors,
     stats,
 
     // Loading states

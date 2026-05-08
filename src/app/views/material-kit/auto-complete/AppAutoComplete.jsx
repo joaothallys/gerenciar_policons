@@ -614,6 +614,7 @@ export default function TransactionsPage() {
         enqueueSnackbar("Transação atualizada com sucesso!", {
           variant: "success",
         });
+        showSuccessPopup("Transação atualizada com sucesso!", "Transação modificada");
 
         // Recarregar transações da API
         await fetchTransactions();
@@ -654,6 +655,7 @@ export default function TransactionsPage() {
 
         await res.json();
         enqueueSnackbar("Transação criada com sucesso!", { variant: "success" });
+        showSuccessPopup("Transação criada com sucesso!", "Nova transação adicionada");
 
         // Recarregar transações da API
         await fetchTransactions();

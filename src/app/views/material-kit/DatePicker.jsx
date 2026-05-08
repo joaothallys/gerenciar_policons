@@ -26,6 +26,8 @@ import {
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { useSnackbar } from "notistack";
+import { metaService } from "app/services/metaService";
+import { interpretApiError } from "app/utils/apiErrorHandler";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
@@ -114,22 +116,6 @@ export default function MonthlyMetasPage() {
         meta_perc: "",
     });
 
-    const getApiHost = () => {
-        const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
-        return runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST || "http://localhost:5000";
-    };
-
-    const getAuthToken = () => {
-        const token = localStorage.getItem("accessToken");
-        if (!token) {
-            enqueueSnackbar("Token nao encontrado. Faca login novamente.", {
-                variant: "warning",
-            });
-            return null;
-        }
-        return token;
-    };
-
     const mapMetaFromApi = (meta) => {
         const monthRef = meta?.month_ref ? String(meta.month_ref).slice(0, 7) : "-";
         const updatedAt = meta?.updated_at ? String(meta.updated_at).slice(0, 10) : "-";
@@ -151,76 +137,16 @@ export default function MonthlyMetasPage() {
     };
 
     const fetchMetas = async () => {
-        const token = getAuthToken();
-        if (!token) return;
-
-        const apiHost = getApiHost();
         setLoadingMetas(true);
 
         try {
-            const firstRes = await fetch(`${apiHost}/meta?page=1&per_page=10`, {
-                method: "GET",
-                headers: {
-                    accept: "application/json",
-                    Authorization: token,
-                },
-            });
-
-            if (!firstRes.ok) {
-                let errorMessage = "";
-                try {
-                    const errorData = await firstRes.json();
-                    errorMessage = errorData?.message || errorData?.error || "";
-                } catch (e) {
-                    errorMessage = await firstRes.text();
-                }
-
-                enqueueSnackbar(errorMessage || `Erro ao carregar metas (${firstRes.status})`, {
-                    variant: "error",
-                });
-                setMetas([]);
-                setSummary(null);
-                return;
-            }
-
-            const firstPayload = await firstRes.json();
-            const totalPagesFromApi = Number(firstPayload?.total_pages ?? 1);
-
-            let allItems = Array.isArray(firstPayload?.monthly_metas)
-                ? firstPayload.monthly_metas.map(mapMetaFromApi)
-                : [];
-
-            if (totalPagesFromApi > 1) {
-                const pageRequests = Array.from({ length: totalPagesFromApi - 1 }, (_, index) => index + 2);
-                const responses = await Promise.all(
-                    pageRequests.map((currentPage) =>
-                        fetch(`${apiHost}/meta?page=${currentPage}&per_page=10`, {
-                            method: "GET",
-                            headers: {
-                                accept: "application/json",
-                                Authorization: token,
-                            },
-                        })
-                    )
-                );
-
-                const nextPagesItems = await Promise.all(
-                    responses.map(async (response) => {
-                        if (!response.ok) return [];
-                        const payload = await response.json();
-                        return Array.isArray(payload?.monthly_metas)
-                            ? payload.monthly_metas.map(mapMetaFromApi)
-                            : [];
-                    })
-                );
-
-                allItems = [...allItems, ...nextPagesItems.flat()];
-            }
-
+            const response = await metaService.getAllPages();
+            const allItems = response.items.map(mapMetaFromApi);
             setMetas(allItems);
-            setSummary(firstPayload?.summary ?? null);
+            setSummary(response.summary ?? null);
         } catch (error) {
-            enqueueSnackbar("Erro ao buscar metas", { variant: "error" });
+            const message = interpretApiError(error.message, error.response?.status, "meta");
+            enqueueSnackbar(message || "Erro ao buscar metas", { variant: "error" });
             console.error("Erro ao buscar metas:", error);
             setMetas([]);
             setSummary(null);
@@ -291,9 +217,6 @@ export default function MonthlyMetasPage() {
     };
 
     const handleSubmit = async () => {
-        const token = getAuthToken();
-        if (!token) return;
-
         setLoading(true);
 
         try {
@@ -314,87 +237,23 @@ export default function MonthlyMetasPage() {
                 return;
             }
 
+            const normalizedMonthRef =
+                formData.month_ref?.length === 7 ? `${formData.month_ref}-01` : formData.month_ref;
+
             if (dialogMode === "create") {
-                const normalizedMonthRef =
-                    formData.month_ref?.length === 7 ? `${formData.month_ref}-01` : formData.month_ref;
-
-                const formDataToSend = new FormData();
-                formDataToSend.append("meta_perc", metaValue.toString());
-                formDataToSend.append("month_ref", normalizedMonthRef);
-
-                const apiHost = getApiHost();
-                const res = await fetch(`${apiHost}/meta`, {
-                    method: "POST",
-                    headers: {
-                        accept: "application/json",
-                        Authorization: token,
-                    },
-                    body: formDataToSend,
-                });
-
-                if (!res.ok) {
-                    let errorMessage = "";
-                    try {
-                        const errorData = await res.json();
-                        errorMessage = errorData?.message || errorData?.error || "";
-                    } catch (e) {
-                        errorMessage = await res.text();
-                    }
-
-                    enqueueSnackbar(
-                        errorMessage || `Erro ao criar meta mensal (${res.status})`,
-                        { variant: "error" }
-                    );
-                    setLoading(false);
-                    return;
-                }
-
+                await metaService.create(normalizedMonthRef, metaValue);
                 enqueueSnackbar("Meta criada com sucesso!", { variant: "success" });
                 await fetchMetas();
             } else if (dialogMode === "edit" && selectedMeta) {
-                const normalizedMonthRef =
-                    formData.month_ref?.length === 7 ? `${formData.month_ref}-01` : formData.month_ref;
-
-                const formDataToSend = new FormData();
-                formDataToSend.append("meta_perc", metaValue.toString());
-                formDataToSend.append("month_ref", normalizedMonthRef);
-
-                const apiHost = getApiHost();
-                const res = await fetch(`${apiHost}/meta/${selectedMeta.id}`, {
-                    method: "PUT",
-                    headers: {
-                        accept: "application/json",
-                        Authorization: token,
-                    },
-                    body: formDataToSend,
-                });
-
-                if (!res.ok) {
-                    let errorMessage = "";
-                    try {
-                        const errorData = await res.json();
-                        errorMessage = errorData?.message || errorData?.error || "";
-                    } catch (e) {
-                        errorMessage = await res.text();
-                    }
-
-                    enqueueSnackbar(
-                        errorMessage || `Erro ao atualizar meta mensal (${res.status})`,
-                        { variant: "error" }
-                    );
-                    setLoading(false);
-                    return;
-                }
-
-                enqueueSnackbar("Meta atualizada com sucesso!", {
-                    variant: "success",
-                });
+                await metaService.update(selectedMeta.id, normalizedMonthRef, metaValue);
+                enqueueSnackbar("Meta atualizada com sucesso!", { variant: "success" });
                 await fetchMetas();
             }
 
             handleCloseDialog();
         } catch (error) {
-            enqueueSnackbar("Erro ao processar operacao", { variant: "error" });
+            const message = interpretApiError(error.message, error.response?.status, "meta");
+            enqueueSnackbar(message || "Erro ao processar operacao", { variant: "error" });
             console.error("Erro:", error);
         } finally {
             setLoading(false);

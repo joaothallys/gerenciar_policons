@@ -48,8 +48,15 @@ export default function MetasPage() {
   const fetchMetas = async () => {
     try {
       setFetching(true);
-      const data = await metaService.getAllPages();
-      setMetas(data);
+      const response = await metaService.getAllPages();
+      const mappedMetas = response.items.map((meta) => ({
+        id: meta.id,
+        month_ref: meta.month_ref,
+        meta_perc: meta.meta_perc,
+        responsible_user_id: meta.responsible_user_id,
+        updated_at: meta.updated_at,
+      }));
+      setMetas(mappedMetas);
     } catch (error) {
       const message = interpretApiError(
         error.message,
@@ -119,16 +126,13 @@ export default function MetasPage() {
         return;
       }
 
-      const submitData = {
-        month_ref: `${formData.month_ref}-01`,
-        meta_perc,
-      };
+      const monthRef = `${formData.month_ref}-01`;
 
       if (dialogMode === "create") {
-        await metaService.create(submitData);
+        await metaService.create(monthRef, meta_perc);
         enqueueSnackbar("Meta criada com sucesso!", { variant: "success" });
       } else if (dialogMode === "edit" && selectedMeta) {
-        await metaService.update(selectedMeta.id, submitData);
+        await metaService.update(selectedMeta.id, monthRef, meta_perc);
         enqueueSnackbar("Meta atualizada com sucesso!", { variant: "success" });
       }
 
