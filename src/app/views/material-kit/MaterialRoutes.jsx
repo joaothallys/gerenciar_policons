@@ -6,6 +6,7 @@ const UsersPage = Loadable(lazy(() => import("app/views/users/UsersPage")));
 const ProductsPage = Loadable(lazy(() => import("app/views/products/ProductsPage")));
 const ImportPage = Loadable(lazy(() => import("app/views/import/ImportPage")));
 const MetasPage = Loadable(lazy(() => import("app/views/metas/MetasPage")));
+const NotificationsPage = Loadable(lazy(() => import("app/views/notifications/NotificationsPage")));
 
 const materialRoutes = [
   { path: "/transactions", element: <TransactionsPage /> },
@@ -13,6 +14,7 @@ const materialRoutes = [
   { path: "/products", element: <ProductsPage /> },
   { path: "/import", element: <ImportPage /> },
   { path: "/metas", element: <MetasPage /> },
+  { path: "/notifications", element: <NotificationsPage /> },
 ];
 
 export default materialRoutes;

@@ -1,6 +1,6 @@
+import { toast } from "react-toastify";
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { useSnackbar } from "notistack";
 import { Formik } from "formik";
 import * as Yup from "yup";
 
@@ -64,9 +64,7 @@ const validationSchema = Yup.object().shape({
 
 export default function FirebaseRegister() {
   const theme = useTheme();
-  const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();const [loading, setLoading] = useState(false);
   const { createUserWithEmail, signInWithGoogle } = useAuth();
 
   const handleGoogleRegister = async () => {
@@ -84,10 +82,10 @@ export default function FirebaseRegister() {
       setLoading(true);
       await createUserWithEmail(values.email, values.password);
       navigate("/");
-      enqueueSnackbar("Register Successfully!", { variant: "success" });
+      toast.success("Register Successfully!");
     } catch (e) {
       setLoading(false);
-      enqueueSnackbar(e.message, { variant: "error" });
+      toast.error(e.message);
     }
   };
 

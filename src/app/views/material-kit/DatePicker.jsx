@@ -25,7 +25,7 @@ import {
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
-import { useSnackbar } from "notistack";
+import { toast } from "react-toastify";
 import { metaService } from "app/services/metaService";
 import { interpretApiError } from "app/utils/apiErrorHandler";
 import AddIcon from "@mui/icons-material/Add";
@@ -98,7 +98,6 @@ const MetaCard = styled(Card)(({ theme }) => ({
 }));
 
 export default function MonthlyMetasPage() {
-    const { enqueueSnackbar } = useSnackbar();
     const [metas, setMetas] = useState([]);
     const [filteredMetas, setFilteredMetas] = useState([]);
     const [summary, setSummary] = useState(null);
@@ -115,6 +114,9 @@ export default function MonthlyMetasPage() {
         month_ref: "",
         meta_perc: "",
     });
+    const [filterMonth, setFilterMonth] = useState("");
+    const [filteredMeta, setFilteredMeta] = useState(null);
+    const [filterLoading, setFilterLoading] = useState(false);
 
     const mapMetaFromApi = (meta) => {
         const monthRef = meta?.month_ref ? String(meta.month_ref).slice(0, 7) : "-";
@@ -145,13 +147,47 @@ export default function MonthlyMetasPage() {
             setMetas(allItems);
             setSummary(response.summary ?? null);
         } catch (error) {
-            const message = interpretApiError(error.message, error.response?.status, "meta");
-            enqueueSnackbar(message || "Erro ao buscar metas", { variant: "error" });
+            const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || "Erro ao buscar metas";
+            const statusCode = error.response?.status || 500;
+            const message = interpretApiError(errorMessage, statusCode, "meta");
+            toast.error(message);
             console.error("Erro ao buscar metas:", error);
             setMetas([]);
             setSummary(null);
         } finally {
             setLoadingMetas(false);
+        }
+    };
+
+    const fetchMetaByMonth = async (monthRef) => {
+        if (!monthRef) {
+            setFilteredMeta(null);
+            return;
+        }
+
+        setFilterLoading(true);
+        try {
+            const meta = await metaService.getByMonth(monthRef);
+            const mappedMeta = mapMetaFromApi(meta);
+            setFilteredMeta(mappedMeta);
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || "Meta não encontrada";
+            const statusCode = error.response?.status || 500;
+            const message = interpretApiError(errorMessage, statusCode, "meta");
+            toast.error(message);
+            setFilteredMeta(null);
+        } finally {
+            setFilterLoading(false);
+        }
+    };
+
+    const handleFilterMonthChange = (e) => {
+        const month = e.target.value;
+        setFilterMonth(month);
+        if (month) {
+            fetchMetaByMonth(month);
+        } else {
+            setFilteredMeta(null);
         }
     };
 
@@ -221,18 +257,14 @@ export default function MonthlyMetasPage() {
 
         try {
             if (!formData.month_ref || !formData.meta_perc) {
-                enqueueSnackbar("Preencha todos os campos obrigatorios", {
-                    variant: "warning",
-                });
+                toast.warning("Preencha todos os campos obrigatorios");
                 setLoading(false);
                 return;
             }
 
-            const metaValue = parseInt(formData.meta_perc, 10);
+            const metaValue = parseFloat(formData.meta_perc);
             if (isNaN(metaValue) || metaValue < 0 || metaValue > 1000) {
-                enqueueSnackbar("Meta deve ser um numero entre 0 e 1000", {
-                    variant: "warning",
-                });
+                toast.warning("Meta deve ser um numero entre 0 e 1000");
                 setLoading(false);
                 return;
             }
@@ -242,18 +274,20 @@ export default function MonthlyMetasPage() {
 
             if (dialogMode === "create") {
                 await metaService.create(normalizedMonthRef, metaValue);
-                enqueueSnackbar("Meta criada com sucesso!", { variant: "success" });
+                toast.success("Meta criada com sucesso!");
                 await fetchMetas();
             } else if (dialogMode === "edit" && selectedMeta) {
                 await metaService.update(selectedMeta.id, normalizedMonthRef, metaValue);
-                enqueueSnackbar("Meta atualizada com sucesso!", { variant: "success" });
+                toast.success("Meta atualizada com sucesso!");
                 await fetchMetas();
             }
 
             handleCloseDialog();
         } catch (error) {
-            const message = interpretApiError(error.message, error.response?.status, "meta");
-            enqueueSnackbar(message || "Erro ao processar operacao", { variant: "error" });
+            const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || "Erro desconhecido";
+            const statusCode = error.response?.status || 500;
+            const message = interpretApiError(errorMessage, statusCode, "meta");
+            toast.error(message);
             console.error("Erro:", error);
         } finally {
             setLoading(false);
@@ -329,7 +363,7 @@ export default function MonthlyMetasPage() {
 
             <FilterCard>
                 <Grid container spacing={2} sx={{ mb: 2 }}>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
                         <TextField
                             fullWidth
                             size="small"
@@ -339,7 +373,19 @@ export default function MonthlyMetasPage() {
                             placeholder="YYYY-MM ou nome..."
                         />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            label="Filtrar por Mes"
+                            name="filterMonth"
+                            type="month"
+                            value={filterMonth}
+                            onChange={handleFilterMonthChange}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
                         <Button
                             fullWidth
                             variant="contained"
@@ -367,6 +413,83 @@ export default function MonthlyMetasPage() {
                     </Button>
                 </Box>
             </FilterCard>
+
+            {/* Filtered Meta Display */}
+            {filterMonth && (
+                <Card elevation={0} sx={{ mb: 3, border: "2px solid #667eea", p: 3 }}>
+                    {filterLoading ? (
+                        <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                            <CircularProgress size={32} />
+                        </Box>
+                    ) : filteredMeta ? (
+                        <Grid container spacing={2} alignItems="center">
+                            <Grid item xs={12} sm={6}>
+                                <Typography variant="subtitle2" sx={{ color: "textSecondary", mb: 0.5 }}>
+                                    MÊS SELECIONADO
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                                    {filteredMeta.month_ref}
+                                </Typography>
+                                <Typography variant="body2" color="textSecondary">
+                                    Responsável: {filteredMeta.user.username}
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <Box sx={{ textAlign: { xs: "left", sm: "right" } }}>
+                                    <Typography variant="subtitle2" sx={{ color: "textSecondary", mb: 0.5 }}>
+                                        META PERCENTUAL
+                                    </Typography>
+                                    <Typography
+                                        variant="h5"
+                                        sx={{
+                                            fontWeight: 700,
+                                            color:
+                                                filteredMeta.meta_perc >= 100
+                                                    ? "#4caf50"
+                                                    : filteredMeta.meta_perc >= 75
+                                                    ? "#ff9800"
+                                                    : "#f44336",
+                                            mb: 1,
+                                        }}
+                                    >
+                                        {filteredMeta.meta_perc}%
+                                    </Typography>
+                                    <Box sx={{ display: "flex", gap: 1, justifyContent: { xs: "flex-start", sm: "flex-end" } }}>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            startIcon={<EditIcon />}
+                                            onClick={() => handleOpenDialog("edit", filteredMeta)}
+                                        >
+                                            Editar
+                                        </Button>
+                                    </Box>
+                                </Box>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Box sx={{ backgroundColor: "#f5f5f5", p: 1.5, borderRadius: 1 }}>
+                                    <LinearProgress
+                                        variant="determinate"
+                                        value={Math.min(filteredMeta.meta_perc, 100)}
+                                        sx={{
+                                            height: "8px",
+                                            borderRadius: 1,
+                                            backgroundColor: "#e0e0e0",
+                                            "& .MuiLinearProgress-bar": {
+                                                backgroundColor: getMetaStatusColor(filteredMeta.meta_perc),
+                                            },
+                                        }}
+                                    />
+                                </Box>
+                            </Grid>
+                        </Grid>
+                    ) : (
+                        <Typography variant="body2" color="textSecondary" sx={{ textAlign: "center", py: 2 }}>
+                            Nenhuma meta encontrada para este mês
+                        </Typography>
+                    )}
+                </Card>
+            )}
 
             {viewMode === "card" && (
                 <Box>
@@ -584,8 +707,8 @@ export default function MonthlyMetasPage() {
                             value={formData.meta_perc}
                             onChange={handleFormChange}
                             required
-                            inputProps={{ min: "0", max: "1000", step: "10" }}
-                            helperText="Digite o percentual da meta (ex: 100, 120, 150)"
+                            inputProps={{ min: "0", max: "1000", step: "0.1" }}
+                            helperText="Digite o percentual da meta (ex: 100, 120.5, 150)"
                         />
                     </Box>
                 </DialogContent>

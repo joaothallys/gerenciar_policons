@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { useSnackbar } from "notistack";
+import { toast } from "react-toastify";
 import { productService } from "app/services/productService";
 import { interpretApiError } from "app/utils/apiErrorHandler";
 import { PRODUCT_TYPES, PRODUCT_DESCRIPTION_OPTIONS } from "app/constants";
 
 export const useProducts = () => {
-  const { enqueueSnackbar } = useSnackbar();
 
   // Main data states
   const [products, setProducts] = useState([]);
@@ -61,7 +60,7 @@ export const useProducts = () => {
       setProducts(productsList);
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "product");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       console.error("Error fetching products:", error);
     } finally {
       setFetching(false);
@@ -156,12 +155,12 @@ export const useProducts = () => {
     if (file) {
       // Validate: PNG only, max 5MB
       if (!file.name.toLowerCase().endsWith(".png")) {
-        enqueueSnackbar("Apenas imagens PNG são aceitas", { variant: "warning" });
+        toast.warning("Apenas imagens PNG são aceitas");
         return;
       }
 
       if (file.size > 5 * 1024 * 1024) {
-        enqueueSnackbar("Imagem deve ter menos de 5MB", { variant: "warning" });
+        toast.warning("Imagem deve ter menos de 5MB");
         return;
       }
 
@@ -184,13 +183,13 @@ export const useProducts = () => {
     try {
       // Validation
       if (!formData.name || !formData.description || !formData.points) {
-        enqueueSnackbar("Preencha todos os campos obrigatórios", { variant: "warning" });
+        toast.warning("Preencha todos os campos obrigatórios");
         setLoading(false);
         return;
       }
 
       if (Number(formData.points) <= 0) {
-        enqueueSnackbar("Pontos deve ser maior que 0", { variant: "warning" });
+        toast.warning("Pontos deve ser maior que 0");
         setLoading(false);
         return;
       }
@@ -207,17 +206,17 @@ export const useProducts = () => {
 
       if (dialogMode === "create") {
         await productService.create(formDataToSend);
-        enqueueSnackbar("Produto criado com sucesso!", { variant: "success" });
+        toast.success("Produto criado com sucesso!");
       } else if (dialogMode === "edit" && selectedProduct) {
         await productService.update(selectedProduct.id, formDataToSend);
-        enqueueSnackbar("Produto atualizado com sucesso!", { variant: "success" });
+        toast.success("Produto atualizado com sucesso!");
       }
 
       handleCloseDialog();
       await fetchProducts();
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "product");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       console.error("Error saving product:", error);
     } finally {
       setLoading(false);
@@ -235,10 +234,10 @@ export const useProducts = () => {
       setLoading(true);
       await productService.remove(productId);
       setProducts((prev) => prev.filter((p) => p.id !== productId));
-      enqueueSnackbar("Produto deletado com sucesso!", { variant: "success" });
+      toast.success("Produto deletado com sucesso!");
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "product");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       console.error("Error deleting product:", error);
     } finally {
       setLoading(false);
@@ -258,19 +257,19 @@ export const useProducts = () => {
 
   const handleUpdateStock = async () => {
     if (!stockProductId || !stockQuantity) {
-      enqueueSnackbar("Digite a quantidade", { variant: "warning" });
+      toast.warning("Digite a quantidade");
       return;
     }
 
     try {
       setLoading(true);
       await productService.updateStock(stockProductId, parseInt(stockQuantity));
-      enqueueSnackbar("Estoque atualizado com sucesso!", { variant: "success" });
+      toast.success("Estoque atualizado com sucesso!");
       handleCloseStockDialog();
       await fetchProducts();
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "product");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
     } finally {
       setLoading(false);
     }

@@ -1,12 +1,10 @@
-import { Box, Button, Card, CircularProgress, Alert, AlertTitle, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select, MenuItem, Grid, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
+import { Box, Button, Card, CircularProgress, Alert, AlertTitle, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select, MenuItem, Grid, Typography, IconButton } from "@mui/material";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { styled } from "@mui/material/styles";
 import { useState, useRef } from "react";
-import { useSnackbar } from "notistack";
+import { toast } from "react-toastify";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CloseIcon from "@mui/icons-material/Close";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
 import * as XLSX from "xlsx";
 
 const Container = styled("div")(({ theme }) => ({
@@ -46,17 +44,18 @@ const TRANSACTION_TYPES = [
   { id: 4, name: "Pontos Perdidos - Frequência" },
   { id: 5, name: "Pontos Perdidos - Organização" },
   { id: 6, name: "Pontos Perdidos - Trimestral" },
-  { id: 7, name: "Pontos Gastos - Loja" },
+  { id: 7, name: "Pontos Gastos - Loja Virtual" },
+  { id: 8, name: "Pontos Gastos - Loja Física" },
+  { id: 9, name: "Pontos Ganhos - Cursos" },
+  { id: 10, name: "Pontos Ganhos - Academia" },
 ];
 
 export default function ImportPage() {
-  const { enqueueSnackbar } = useSnackbar();
   const fileInputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState(1);
-  const [responseDialog, setResponseDialog] = useState({ open: false, success: false, message: "", statusCode: null });
 
   const handleFileSelect = (selectedFile) => {
     const validFormats = [".xlsx", ".xls", ".csv"];
@@ -64,9 +63,7 @@ export default function ImportPage() {
     const isValidFormat = validFormats.some((fmt) => fileName.endsWith(fmt));
 
     if (!isValidFormat) {
-      enqueueSnackbar("Apenas arquivos XLSX, XLS ou CSV são aceitos", {
-        variant: "warning",
-      });
+      toast.warning("Apenas arquivos XLSX, XLS ou CSV são aceitos");
       return;
     }
 
@@ -82,7 +79,7 @@ export default function ImportPage() {
         const rows = XLSX.utils.sheet_to_json(worksheet);
 
         if (rows.length === 0) {
-          enqueueSnackbar("Arquivo vazio", { variant: "warning" });
+          toast.warning("Arquivo vazio");
           return;
         }
 
@@ -91,22 +88,16 @@ export default function ImportPage() {
         const hasAllColumns = requiredColumns.every((col) => col in firstRow);
 
         if (!hasAllColumns) {
-          enqueueSnackbar(
-            "Arquivo deve conter as colunas: email, data, points",
-            { variant: "warning" }
-          );
+          toast.warning("Arquivo deve conter as colunas: email, data, points");
           return;
         }
 
         setPreview(rows.slice(0, 5));
-        enqueueSnackbar(
-          `${rows.length} registro(s) detectado(s). Mostrando preview dos 5 primeiros.`,
-          { variant: "info" }
-        );
+        toast.info(`${rows.length} registro(s) detectado(s). Mostrando preview dos 5 primeiros.`);
       };
       reader.readAsArrayBuffer(selectedFile);
     } catch (error) {
-      enqueueSnackbar("Erro ao processar arquivo", { variant: "error" });
+      toast.error("Erro ao processar arquivo");
       console.error("Error:", error);
     }
   };
@@ -119,20 +110,27 @@ export default function ImportPage() {
     }
   };
 
+  const resetFile = () => {
+    setFile(null);
+    setPreview([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleImport = async () => {
     if (!file || preview.length === 0) {
-      enqueueSnackbar("Nenhum arquivo selecionado", { variant: "warning" });
+      toast.warning("Nenhum arquivo selecionado");
       return;
     }
 
-    try {
-      setUploading(true);
+    setUploading(true);
 
+    try {
       const token = localStorage.getItem("accessToken");
       if (!token) {
-        enqueueSnackbar("Token não encontrado. Faça login novamente.", {
-          variant: "warning",
-        });
+        toast.warning("Token não encontrado. Faça login novamente.");
+        resetFile();
         return;
       }
 
@@ -159,27 +157,17 @@ export default function ImportPage() {
       if (!response.ok) {
         const errorMessage =
           responseData?.error || responseData?.message || "Erro ao importar dados";
-        setResponseDialog({
-          open: true,
-          success: false,
-          message: errorMessage,
-          statusCode: response.status,
-        });
+        toast.error(errorMessage);
+        resetFile();
         return;
       }
 
-      setResponseDialog({
-        open: true,
-        success: true,
-        message: responseData?.message || `${preview.length} transações importadas com sucesso!`,
-        statusCode: response.status,
-      });
+      toast.success(responseData?.message || `${preview.length} transações importadas com sucesso!`);
       setFile(null);
       setPreview([]);
     } catch (error) {
-      enqueueSnackbar(error?.message || "Erro ao importar dados", {
-        variant: "error",
-      });
+      toast.error(error?.message || "Erro ao importar dados");
+      resetFile();
     } finally {
       setUploading(false);
     }
@@ -331,40 +319,6 @@ export default function ImportPage() {
           </>
         )}
       </SimpleCard>
-
-      {/* Response Dialog */}
-      <Dialog open={responseDialog.open} onClose={() => setResponseDialog({ ...responseDialog, open: false })} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ pb: 0 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            {responseDialog.success ? (
-              <CheckCircleIcon sx={{ color: "#4caf50", fontSize: 28 }} />
-            ) : (
-              <ErrorIcon sx={{ color: "#f44336", fontSize: 28 }} />
-            )}
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              {responseDialog.success ? "Sucesso!" : "Erro"}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            {responseDialog.message}
-          </Typography>
-          <Box sx={{ p: 1.5, backgroundColor: "#f5f5f5", borderRadius: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, display: "block", mb: 0.5 }}>
-              Código da Resposta:
-            </Typography>
-            <Typography variant="body2" sx={{ fontFamily: "monospace", fontWeight: 500 }}>
-              {responseDialog.statusCode}
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setResponseDialog({ ...responseDialog, open: false })} variant="contained" color={responseDialog.success ? "success" : "error"}>
-            OK
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Container>
   );
 }

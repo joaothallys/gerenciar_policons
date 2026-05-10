@@ -1,15 +1,12 @@
+import { toast } from "react-toastify";
 import { useState, useEffect } from "react";
-import { useSnackbar } from "notistack";
 import { transactionService } from "app/services/transactionService";
 import { userService } from "app/services/userService";
 import { productService } from "app/services/productService";
 import { interpretApiError } from "app/utils/apiErrorHandler";
 import { showSuccessPopup, showErrorPopup } from "app/utils/popup";
 
-export const useTransactions = () => {
-  const { enqueueSnackbar } = useSnackbar();
-
-  // Main data states
+export const useTransactions = () => {// Main data states
   const [transactions, setTransactions] = useState([]);
   const [summary, setSummary] = useState(null);
   const [transactionProductsById, setTransactionProductsById] = useState({});
@@ -131,7 +128,7 @@ export const useTransactions = () => {
     } catch (error) {
       console.error("Error fetching transactions:", error);
       const message = interpretApiError(error.message, error.response?.status, "transaction");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
     } finally {
       setFetching(false);
     }
@@ -257,7 +254,7 @@ export const useTransactions = () => {
     try {
       // Validation
       if (!formData.userID || !formData.typeID || !formData.points) {
-        enqueueSnackbar("Preencha todos os campos obrigatórios", { variant: "warning" });
+        toast.warning("Preencha todos os campos obrigatórios");
         setLoading(false);
         return;
       }
@@ -272,17 +269,17 @@ export const useTransactions = () => {
 
       if (editingId) {
         await transactionService.update(editingId, submitData);
-        enqueueSnackbar("Transação atualizada com sucesso!", { variant: "success" });
+        toast.success("Transação atualizada com sucesso!");
       } else {
         await transactionService.create(submitData);
-        enqueueSnackbar("Transação criada com sucesso!", { variant: "success" });
+        toast.success("Transação criada com sucesso!");
       }
 
       handleCloseDialog();
       await fetchTransactions();
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "transaction");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       console.error("Error saving transaction:", error);
     } finally {
       setLoading(false);
@@ -308,11 +305,11 @@ export const useTransactions = () => {
       setLoading(true);
       await transactionService.remove(id);
       setTransactions((prev) => prev.filter((t) => t.id !== id));
-      enqueueSnackbar("Transação deletada com sucesso!", { variant: "success" });
+      toast.success("Transação deletada com sucesso!");
       showSuccessPopup("Transação deletada com sucesso!", "Transação removida");
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "transaction");
-      enqueueSnackbar(message, { variant: "error" });
+      toast.error(message);
       showErrorPopup(message, "Falha ao deletar transação");
       console.error("Error deleting transaction:", error);
     } finally {

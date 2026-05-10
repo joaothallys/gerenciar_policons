@@ -17,6 +17,17 @@ export const userService = {
     }
   },
 
+  // Get all active users list
+  getAllActive: async () => {
+    try {
+      const response = await api.get("/users/list/all");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching active users:", error);
+      throw error;
+    }
+  },
+
   // Create new user
   create: async (data) => {
     try {

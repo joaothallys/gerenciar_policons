@@ -14,6 +14,7 @@ import { MatxSuspense } from "app/components";
 import useSettings from "app/hooks/useSettings";
 import SidenavTheme from "app/components/MatxTheme/SidenavTheme/SidenavTheme";
 import { sidenavCompactWidth, sideNavWidth } from "app/utils/constant";
+import WhatsNewModal from "app/views/notifications/WhatsNewModal";
 
 // STYLED COMPONENTS
 const Layout1Root = styled("div")(({ theme }) => ({
@@ -93,6 +94,7 @@ const Layout1 = () => {
 
   return (
     <Layout1Root className={layoutClasses}>
+      <WhatsNewModal />
       {showSidenav && sidenavMode !== "close" && (
         <SidenavTheme>
           <Layout1Sidenav />

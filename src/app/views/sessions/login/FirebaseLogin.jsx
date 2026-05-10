@@ -1,5 +1,4 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { useSnackbar } from "notistack";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import useAuth from "app/hooks/useAuth";
@@ -77,16 +76,14 @@ const validationSchema = Yup.object().shape({
 });
 
 export default function FirebaseLogin() {
-  const theme = useTheme();
-  const { enqueueSnackbar } = useSnackbar();
-  const { login } = useAuth();
+  const theme = useTheme();const { login } = useAuth();
 
   const handleFormSubmit = async (values, { setErrors }) => {
     try {
       await login(values.email, values.password);
-      enqueueSnackbar("Login realizado com sucesso!", { variant: "success" });
+      toast.success("Login realizado com sucesso!");
     } catch (error) {
-      enqueueSnackbar("Erro ao fazer login: " + error.message, { variant: "error" });
+      toast.error("Erro ao fazer login: " + error.message);
       setErrors({ email: "Credenciais inválidas. Verifique e tente novamente." });
     }
   };

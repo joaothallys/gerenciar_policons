@@ -17,6 +17,17 @@ export const metaService = {
     }
   },
 
+  // Get meta for specific month (format: YYYY-MM)
+  getByMonth: async (monthRef) => {
+    try {
+      const response = await api.get(`/meta/${monthRef}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching meta by month:", error);
+      throw error;
+    }
+  },
+
   // Fetch all meta pages in parallel
   getAllPages: async () => {
     try {
