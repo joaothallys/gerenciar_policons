@@ -1,12 +1,12 @@
 import { Box, Pagination } from "@mui/material";
 import { Breadcrumb } from "app/components";
 import { useTransactions } from "./hooks/useTransactions";
-import { exportTransactionsToCsv } from "./utils/exportCsv";
 import TransactionFilters from "./components/TransactionFilters";
 import TransactionStatsRow from "./components/TransactionStatsRow";
 import TransactionTable from "./components/TransactionTable";
 import TransactionCards from "./components/TransactionCards";
 import TransactionDialog from "./components/TransactionDialog";
+import ExportTransactionsDialog from "./components/ExportTransactionsDialog";
 import { styled } from "@mui/material/styles";
 
 const Container = styled("div")(({ theme }) => ({
@@ -46,6 +46,11 @@ export default function TransactionsPage() {
     loadingProducts,
     exportingCsv,
 
+    // Export modal
+    openExportDialog,
+    setOpenExportDialog,
+    handleExportTransactions,
+
     // Handlers
     handleFilterChange,
     handleOpenDialog,
@@ -55,30 +60,12 @@ export default function TransactionsPage() {
     handleEdit,
     handleDelete,
     setPage,
-    setExportingCsv,
     setProductsPage,
 
     // Helpers
     isPointsGainedType,
     getPointsColor,
   } = useTransactions();
-
-  const handleExportCsv = async () => {
-    try {
-      setExportingCsv(true);
-      const result = await exportTransactionsToCsv({
-        userId: filters.userId || null,
-        startDate: filters.startDate || null,
-        endDate: filters.endDate || null,
-        searchTerm: filters.search,
-      });
-      console.log(result.message);
-    } catch (error) {
-      console.error("Export failed:", error);
-    } finally {
-      setExportingCsv(false);
-    }
-  };
 
   const handleProductsScroll = (event) => {
     const listboxNode = event.currentTarget;
@@ -114,11 +101,10 @@ export default function TransactionsPage() {
         filters={filters}
         filterUsers={filterUsers}
         loadingFilterUsers={loadingFilterUsers}
-        exportingCsv={exportingCsv}
         fetching={fetching}
         onFilterChange={handleFilterChange}
         onOpenDialog={handleOpenDialog}
-        onExport={handleExportCsv}
+        onExport={() => setOpenExportDialog(true)}
       />
 
       {/* Desktop Table */}
@@ -182,6 +168,16 @@ export default function TransactionsPage() {
         onProductsScroll={handleProductsScroll}
         onProductsOpen={handleProductsOpen}
         setProductsPage={setProductsPage}
+      />
+
+      {/* Export Dialog */}
+      <ExportTransactionsDialog
+        open={openExportDialog}
+        onClose={() => setOpenExportDialog(false)}
+        filterUsers={filterUsers}
+        loadingFilterUsers={loadingFilterUsers}
+        onExport={handleExportTransactions}
+        isExporting={exportingCsv}
       />
     </Container>
   );

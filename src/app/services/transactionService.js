@@ -96,4 +96,25 @@ export const transactionService = {
       throw error;
     }
   },
+
+  // Export transactions to Excel
+  exportExcel: async ({ userId, startDate, endDate, transactionTypeId }) => {
+    try {
+      const uid = userId || "{user_id}";
+      const params = {};
+
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (transactionTypeId) params.transaction_type_id = transactionTypeId;
+
+      const response = await api.get(`/transactions/user/${uid}/excel`, {
+        params,
+        responseType: "blob",
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error exporting Excel:", error);
+      throw error;
+    }
+  },
 };

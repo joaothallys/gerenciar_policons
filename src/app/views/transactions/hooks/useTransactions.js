@@ -43,6 +43,9 @@ export const useTransactions = () => {// Main data states
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
 
+  // Export modal states
+  const [openExportDialog, setOpenExportDialog] = useState(false);
+
   // Modal data states
   const [filterUsers, setFilterUsers] = useState([]);
   const [users, setUsers] = useState([]);
@@ -376,6 +379,10 @@ export const useTransactions = () => {// Main data states
     loadingProducts,
     exportingCsv,
 
+    // Export modal states
+    openExportDialog,
+    setOpenExportDialog,
+
     // Handlers
     handleFilterChange,
     handleOpenDialog,
@@ -389,6 +396,26 @@ export const useTransactions = () => {// Main data states
     setProductsPage,
     setTransactionProductsById,
     fetchTransactions,
+
+    // Export handler
+    handleExportTransactions: async (exportFilters) => {
+      try {
+        setExportingCsv(true);
+        const { exportTransactionsToCsv } = await import("../utils/exportCsv");
+        const result = await exportTransactionsToCsv({
+          userId: exportFilters.userId || null,
+          startDate: exportFilters.startDate || null,
+          endDate: exportFilters.endDate || null,
+          transactionTypeId: exportFilters.transactionTypeId || null,
+        });
+        console.log(result.message);
+      } catch (error) {
+        console.error("Export failed:", error);
+        showErrorPopup("Erro ao exportar transações", error?.message);
+      } finally {
+        setExportingCsv(false);
+      }
+    },
 
     // Helpers
     isPointsGainedType: (typeId) => [1, 2, 3].includes(Number(typeId)),

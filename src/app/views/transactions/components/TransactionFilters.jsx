@@ -1,4 +1,4 @@
-import { Grid, TextField, Select, MenuItem, Button, CircularProgress } from "@mui/material";
+import { Grid, TextField, Select, MenuItem, Button } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/Download";
 import { FilterSection } from "app/components/shared";
@@ -7,7 +7,6 @@ export default function TransactionFilters({
   filters,
   filterUsers,
   loadingFilterUsers,
-  exportingCsv,
   fetching,
   onFilterChange,
   onOpenDialog,
@@ -80,21 +79,15 @@ export default function TransactionFilters({
             fullWidth
             variant="outlined"
             color="primary"
-            startIcon={
-              exportingCsv ? (
-                <CircularProgress size={16} color="inherit" />
-              ) : (
-                <DownloadIcon />
-              )
-            }
+            startIcon={<DownloadIcon />}
             onClick={onExport}
-            disabled={exportingCsv || fetching}
+            disabled={fetching}
             sx={{
               fontSize: { xs: "12px", sm: "14px" },
               padding: { xs: "8px 12px", sm: "10px 16px" },
             }}
           >
-            {exportingCsv ? "Exportando..." : "Exportar CSV"}
+            Exportar Excel
           </Button>
         </Grid>
 
