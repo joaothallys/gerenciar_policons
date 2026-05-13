@@ -262,11 +262,12 @@ export const useTransactions = () => {// Main data states
         return;
       }
 
+      const isPointsGained = [1, 2, 3, 9, 10].includes(Number(formData.typeID));
       const submitData = {
         user_id: parseInt(formData.userID),
         type_id: parseInt(formData.typeID),
         points: parseInt(formData.points),
-        payment_method_id: parseInt(formData.payment_method_id),
+        ...(isPointsGained ? {} : { payment_method_id: parseInt(formData.payment_method_id) }),
         product_id: formData.productID ? parseInt(formData.productID) : null,
       };
 
@@ -418,7 +419,7 @@ export const useTransactions = () => {// Main data states
     },
 
     // Helpers
-    isPointsGainedType: (typeId) => [1, 2, 3].includes(Number(typeId)),
+    isPointsGainedType: (typeId) => [1, 2, 3, 9, 10].includes(Number(typeId)),
     getPointsColor: (points) => (points > 0 ? "success" : "error"),
   };
 };

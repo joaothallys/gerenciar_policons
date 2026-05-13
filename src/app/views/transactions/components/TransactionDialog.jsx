@@ -101,9 +101,14 @@ export default function TransactionDialog({
             value={formData.payment_method_id}
             onChange={onFormChange}
             displayEmpty
-            required
+            disabled={isPointsGainedType(formData.typeID)}
+            required={!isPointsGainedType(formData.typeID)}
           >
-            <MenuItem value="">Selecione o Método de Pagamento</MenuItem>
+            <MenuItem value="">
+              {isPointsGainedType(formData.typeID)
+                ? "Desabilitado para Pontos Ganhos"
+                : "Selecione o Método de Pagamento"}
+            </MenuItem>
             {PAYMENT_METHODS.map((method) => (
               <MenuItem key={method.id} value={method.id}>
                 {method.name}

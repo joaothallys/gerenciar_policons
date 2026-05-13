@@ -1,4 +1,4 @@
-// Transaction Types - Business Rules: 1-3 gains, 4-6 losses, 7-8 spent
+// Transaction Types - Business Rules: 1-3,9-10 gains, 4-6 losses, 7-8 spent
 export const TRANSACTION_TYPES = [
   { id: 1, name: "Pontos Ganhos - Meta" },
   { id: 2, name: "Pontos Ganhos - Trimestral" },
@@ -8,6 +8,8 @@ export const TRANSACTION_TYPES = [
   { id: 6, name: "Pontos Perdidos - Trimestral" },
   { id: 7, name: "Pontos Gastos - Loja Virtual" },
   { id: 8, name: "Pontos Gastos - Loja Física" },
+  { id: 9, name: "Pontos Ganhos - Cursos" },
+  { id: 10, name: "Pontos Ganhos - Academia" },
 ];
 
 export const PAYMENT_METHODS = [
@@ -37,7 +39,7 @@ export const USER_ROLES = [
 ];
 
 // Business logic helpers for transaction types
-export const isGainType = (typeId) => [1, 2, 3].includes(Number(typeId));
+export const isGainType = (typeId) => [1, 2, 3, 9, 10].includes(Number(typeId));
 export const isLostType = (typeId) => [4, 5, 6].includes(Number(typeId));
 export const isSpentType = (typeId) => [7, 8].includes(Number(typeId));
 

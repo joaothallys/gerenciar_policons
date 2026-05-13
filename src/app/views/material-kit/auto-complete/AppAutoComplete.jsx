@@ -155,6 +155,8 @@ const TRANSACTION_TYPES = [
   { id: 6, name: "Pontos Perdidos - Trimestral" },
   { id: 7, name: "Pontos Gastos - Loja Virtual" },
   { id: 8, name: "Pontos Gastos - Loja Física" },
+  { id: 9, name: "Pontos Ganhos - Cursos" },
+  { id: 10, name: "Pontos Ganhos - Academia" },
 ];
 
 const PAYMENT_METHODS = [
@@ -577,11 +579,12 @@ export default function TransactionsPage() {
 
       if (editingId) {
         // Editar transação via API (PUT)
+        const isPointsGained = [1, 2, 3, 9, 10].includes(parseInt(formData.typeID));
         const editData = {
           user_id: parseInt(formData.userID),
           type_id: parseInt(formData.typeID),
           points: parseInt(formData.points),
-          payment_method_id: parseInt(formData.payment_method_id),
+          ...(isPointsGained ? {} : { payment_method_id: parseInt(formData.payment_method_id) }),
           product_id: formData.productID ? parseInt(formData.productID) : null,
         };
 
@@ -620,11 +623,12 @@ export default function TransactionsPage() {
         await fetchTransactions();
       } else {
         // Criar transação via API (POST)
+        const isPointsGained = [1, 2, 3, 9, 10].includes(parseInt(formData.typeID));
         const createData = {
           user_id: parseInt(formData.userID),
           type_id: parseInt(formData.typeID),
           points: parseInt(formData.points),
-          payment_method_id: parseInt(formData.payment_method_id),
+          ...(isPointsGained ? {} : { payment_method_id: parseInt(formData.payment_method_id) }),
           product_id: formData.productID ? parseInt(formData.productID) : null,
         };
 
@@ -965,7 +969,7 @@ export default function TransactionsPage() {
 
   // Verificar se o tipo selecionado é "Pontos Ganhos"
   const isPointsGainedType = (typeId) => {
-    return [1, 2, 3].includes(parseInt(typeId));
+    return [1, 2, 3, 9, 10].includes(parseInt(typeId));
   };
 
   // Handler para scroll infinito no Select de produtos
@@ -1455,9 +1459,14 @@ export default function TransactionsPage() {
               value={formData.payment_method_id}
               onChange={handleFormChange}
               displayEmpty
-              required
+              disabled={isPointsGainedType(formData.typeID)}
+              required={!isPointsGainedType(formData.typeID)}
             >
-              <MenuItem value="">Selecione o Método de Pagamento</MenuItem>
+              <MenuItem value="">
+                {isPointsGainedType(formData.typeID)
+                  ? "Desabilitado para Pontos Ganhos"
+                  : "Selecione o Método de Pagamento"}
+              </MenuItem>
               {PAYMENT_METHODS.map((method) => (
                 <MenuItem key={method.id} value={method.id}>
                   {method.name}
