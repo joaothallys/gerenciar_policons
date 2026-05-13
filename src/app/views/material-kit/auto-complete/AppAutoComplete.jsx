@@ -553,6 +553,29 @@ export default function TransactionsPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const sendNotification = async (userId, points) => {
+    try {
+      const notificationApiHost = window.__ENV__?.VITE_REACT_APP_NOTIFICATION_API_HOST ||
+        import.meta.env.VITE_REACT_APP_NOTIFICATION_API_HOST ||
+        "https://policoins-notifications.up.railway.app";
+
+      await fetch(`${notificationApiHost}/notifications/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: "Saldo atualizado",
+          message: `Você recebeu ${points} Policoins`,
+          type: "user",
+          userId: String(userId),
+        }),
+      });
+    } catch (error) {
+      console.error("Error sending notification:", error);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -660,6 +683,10 @@ export default function TransactionsPage() {
         await res.json();
         enqueueSnackbar("Transação criada com sucesso!", { variant: "success" });
         showSuccessPopup("Transação criada com sucesso!", "Nova transação adicionada");
+
+        if (isPointsGained) {
+          await sendNotification(formData.userID, formData.points);
+        }
 
         // Recarregar transações da API
         await fetchTransactions();
