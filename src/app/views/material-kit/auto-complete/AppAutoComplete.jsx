@@ -26,6 +26,7 @@ import { styled } from "@mui/material/styles";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { interpretApiError } from "app/utils/apiErrorHandler";
 import { showErrorPopup, showSuccessPopup } from "app/utils/popup";
+import { notificationService } from "app/services/notificationService";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -553,28 +554,6 @@ export default function TransactionsPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const sendNotification = async (userId, points) => {
-    try {
-      const notificationApiHost = window.__ENV__?.VITE_REACT_APP_NOTIFICATION_API_HOST ||
-        import.meta.env.VITE_REACT_APP_NOTIFICATION_API_HOST ||
-        "https://policoins-notifications.up.railway.app";
-
-      await fetch(`${notificationApiHost}/notifications/send`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: "Saldo atualizado",
-          message: `Você recebeu ${points} Policoins`,
-          type: "user",
-          userId: String(userId),
-        }),
-      });
-    } catch (error) {
-      console.error("Error sending notification:", error);
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -685,7 +664,12 @@ export default function TransactionsPage() {
         showSuccessPopup("Transação criada com sucesso!", "Nova transação adicionada");
 
         if (isPointsGained) {
-          await sendNotification(formData.userID, formData.points);
+          const formattedPoints = parseInt(formData.points).toLocaleString("pt-BR");
+          await notificationService.sendToUser(
+            formData.userID,
+            "Saldo atualizado",
+            `Você recebeu ${formattedPoints} Policoins`
+          );
         }
 
         // Recarregar transações da API

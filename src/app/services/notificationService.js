@@ -63,7 +63,7 @@ export const notificationService = {
         title,
         message,
         type: "user",
-        userId,
+        userId: String(userId),
         metadata,
       });
       return response.data.data;
