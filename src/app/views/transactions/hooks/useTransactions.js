@@ -1,11 +1,14 @@
 import { toast } from "react-toastify";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { transactionService } from "app/services/transactionService";
 import { userService } from "app/services/userService";
 import { productService } from "app/services/productService";
 import { notificationService } from "app/services/notificationService";
 import { interpretApiError } from "app/utils/apiErrorHandler";
 import { showSuccessPopup, showErrorPopup } from "app/utils/popup";
+
+// Mapeamento: tipo de transação → tipo de produto
+const STORE_TYPE_TO_PRODUCT_TYPE = { 7: 1, 8: 2 };
 
 export const useTransactions = () => {// Main data states
   const [transactions, setTransactions] = useState([]);
@@ -53,6 +56,7 @@ export const useTransactions = () => {// Main data states
   const [products, setProducts] = useState([]);
   const [productsPage, setProductsPage] = useState(1);
   const [totalProductsPages, setTotalProductsPages] = useState(1);
+  const activeProductTypeIdRef = useRef(null); // tipo de produto ativo no modal
 
   // Fetch transactions from API
   const fetchTransactions = async () => {
@@ -175,11 +179,13 @@ export const useTransactions = () => {// Main data states
     }
   };
 
-  // Fetch more products pages (scroll pagination)
+  // Busca página de produtos com filtro de tipo (scroll infinito)
   const fetchProductsPage = async (page) => {
+    const typeId = activeProductTypeIdRef.current;
+    if (!typeId) return;
     try {
       setLoadingProducts(true);
-      const data = await productService.getAll({ page, perPage: 10 });
+      const data = await productService.getAll({ page, perPage: 10, typeId });
       setProducts((prev) => [
         ...prev,
         ...(data.products || []).map((p) => ({
@@ -207,17 +213,34 @@ export const useTransactions = () => {// Main data states
     fetchFilterUsers();
   }, []);
 
+  // Busca usuários ao abrir o modal
+  useEffect(() => {
+    if (openDialog) fetchUsers();
+  }, [openDialog]);
+
+  // Recarrega produtos filtrados quando o tipo de transação mudar (loja virtual/física)
   useEffect(() => {
     if (!openDialog) return;
 
-    let cancelled = false;
+    const productTypeId = STORE_TYPE_TO_PRODUCT_TYPE[Number(formData.typeID)];
 
-    fetchUsers();
+    if (!productTypeId) {
+      activeProductTypeIdRef.current = null;
+      setProducts([]);
+      setProductsPage(1);
+      setTotalProductsPages(1);
+      return;
+    }
+
+    activeProductTypeIdRef.current = productTypeId;
+    let cancelled = false;
 
     const loadProducts = async () => {
       try {
         setLoadingProducts(true);
-        const data = await productService.getAll({ page: 1, perPage: 10 });
+        setProducts([]);
+        setProductsPage(1);
+        const data = await productService.getAll({ page: 1, perPage: 10, typeId: productTypeId });
         if (cancelled) return;
         setProducts(
           (data.products || []).map((p) => ({
@@ -228,7 +251,6 @@ export const useTransactions = () => {// Main data states
           }))
         );
         setTotalProductsPages(data.total_pages || 1);
-        setProductsPage(1);
       } catch (error) {
         console.error("Error fetching products:", error);
         toast.error("Erro ao carregar produtos");
@@ -240,7 +262,7 @@ export const useTransactions = () => {// Main data states
     loadProducts();
 
     return () => { cancelled = true; };
-  }, [openDialog]);
+  }, [openDialog, formData.typeID]);
 
   // Handlers
   const handleFilterChange = (e) => {
@@ -281,18 +303,32 @@ export const useTransactions = () => {// Main data states
     setLoading(true);
 
     try {
-      // Validation
-      if (!formData.userID || !formData.typeID || !formData.points) {
+      const typeId = Number(formData.typeID);
+      const isStoreTransaction = [7, 8].includes(typeId);
+      const isPointsGained = [1, 2, 3, 9, 10].includes(typeId);
+
+      // Validação: loja exige produto; demais tipos exigem pontos
+      if (!formData.userID || !formData.typeID) {
+        toast.warning("Preencha todos os campos obrigatórios");
+        setLoading(false);
+        return;
+      }
+      if (isStoreTransaction && !formData.productID) {
+        toast.warning("Selecione um produto para transações de loja");
+        setLoading(false);
+        return;
+      }
+      if (!isStoreTransaction && !formData.points) {
         toast.warning("Preencha todos os campos obrigatórios");
         setLoading(false);
         return;
       }
 
-      const isPointsGained = [1, 2, 3, 9, 10].includes(Number(formData.typeID));
       const submitData = {
         user_id: parseInt(formData.userID),
-        type_id: parseInt(formData.typeID),
-        points: parseInt(formData.points),
+        type_id: typeId,
+        // Tipos 7 e 8: pontos derivados do produto pela API
+        ...(isStoreTransaction ? {} : { points: parseInt(formData.points) }),
         ...(isPointsGained ? {} : { payment_method_id: parseInt(formData.payment_method_id) }),
         product_id: formData.productID ? parseInt(formData.productID) : null,
       };

@@ -87,16 +87,18 @@ export default function TransactionDialog({
             ))}
           </Select>
 
-          <TextField
-            fullWidth
-            type="number"
-            label="Pontos"
-            name="points"
-            value={formData.points}
-            onChange={onFormChange}
-            required
-            helperText="Positivo para ganho, negativo para gasto"
-          />
+          {!isStoreType(formData.typeID) && (
+            <TextField
+              fullWidth
+              type="number"
+              label="Pontos"
+              name="points"
+              value={formData.points}
+              onChange={onFormChange}
+              required
+              helperText="Positivo para ganho, negativo para gasto"
+            />
+          )}
 
           <Select
             fullWidth
@@ -125,6 +127,7 @@ export default function TransactionDialog({
             value={formData.productID}
             onChange={onFormChange}
             disabled={!isStoreType(formData.typeID) || loadingProducts}
+            required={isStoreType(formData.typeID)}
             MenuProps={{
               PaperProps: {
                 onScroll: onProductsScroll,
