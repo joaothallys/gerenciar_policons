@@ -22,15 +22,19 @@ export default function TransactionDialog({
   loadingProducts,
   loading,
   isPointsGainedType,
-  totalProductsPages,
-  productsPage,
+  isStoreType,
   onFormChange,
   onSubmit,
   onClose,
   onProductsScroll,
-  onProductsOpen,
-  setProductsPage,
 }) {
+  const getProductPlaceholder = () => {
+    if (!formData.typeID) return "Selecione o tipo de transação primeiro";
+    if (!isStoreType(formData.typeID)) return "Disponível apenas para Loja Virtual/Física";
+    if (loadingProducts) return "Carregando produtos...";
+    return "Selecione um Produto (Opcional)";
+  };
+
   return (
     <Dialog
       open={open}
@@ -50,7 +54,6 @@ export default function TransactionDialog({
         <Box component="form" sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Select
             fullWidth
-            label="Usuário"
             name="userID"
             value={formData.userID}
             onChange={onFormChange}
@@ -118,49 +121,48 @@ export default function TransactionDialog({
 
           <Select
             fullWidth
-            label="Produto (Opcional)"
             name="productID"
             value={formData.productID}
             onChange={onFormChange}
-            disabled={isPointsGainedType(formData.typeID) || loadingProducts}
-            onOpen={onProductsOpen}
+            disabled={!isStoreType(formData.typeID) || loadingProducts}
             MenuProps={{
               PaperProps: {
                 onScroll: onProductsScroll,
                 sx: {
                   maxHeight: "300px",
-                  "&::-webkit-scrollbar": {
-                    width: "8px",
-                  },
-                  "&::-webkit-scrollbar-track": {
-                    background: "#f1f1f1",
-                  },
-                  "&::-webkit-scrollbar-thumb": {
-                    background: "#888",
-                    borderRadius: "4px",
-                  },
+                  "&::-webkit-scrollbar": { width: "8px" },
+                  "&::-webkit-scrollbar-track": { background: "#f1f1f1" },
+                  "&::-webkit-scrollbar-thumb": { background: "#888", borderRadius: "4px" },
                 },
               },
             }}
             displayEmpty
+            renderValue={(selected) => {
+              if (!selected) {
+                return (
+                  <Box sx={{ color: "text.disabled", fontStyle: "italic" }}>
+                    {getProductPlaceholder()}
+                  </Box>
+                );
+              }
+              const found = products.find((p) => p.id === selected);
+              return found ? `${found.name} - ${found.points.toLocaleString()} pts` : selected;
+            }}
           >
             <MenuItem value="">
-              {isPointsGainedType(formData.typeID)
-                ? "Desabilitado para Pontos Ganhos"
-                : loadingProducts
-                  ? "Carregando produtos..."
-                  : "Selecione um Produto"}
+              <Box sx={{ color: "text.secondary", fontStyle: "italic" }}>
+                {getProductPlaceholder()}
+              </Box>
             </MenuItem>
-            {products.map((product) => (
-              <MenuItem key={product.id} value={product.id}>
-                {product.name} - {product.points.toLocaleString()} pts (
-                {product.type_name})
-              </MenuItem>
-            ))}
+            {isStoreType(formData.typeID) &&
+              products.map((product) => (
+                <MenuItem key={product.id} value={product.id}>
+                  {product.name} - {product.points.toLocaleString()} pts ({product.type_name})
+                </MenuItem>
+              ))}
             {loadingProducts && (
               <MenuItem disabled>
-                <CircularProgress size={20} sx={{ mr: 1 }} /> Carregando
-                mais...
+                <CircularProgress size={20} sx={{ mr: 1 }} /> Carregando mais...
               </MenuItem>
             )}
           </Select>

@@ -64,21 +64,18 @@ export default function TransactionsPage() {
 
     // Helpers
     isPointsGainedType,
+    isStoreType,
     getPointsColor,
+    fetchProductsPage,
   } = useTransactions();
 
   const handleProductsScroll = (event) => {
     const listboxNode = event.currentTarget;
     if (listboxNode.scrollTop + listboxNode.clientHeight === listboxNode.scrollHeight) {
       if (productsPage < totalProductsPages && !loadingProducts) {
-        setProductsPage((prev) => prev + 1);
+        fetchProductsPage(productsPage + 1);
       }
     }
-  };
-
-  const handleProductsOpen = () => {
-    setProducts([]);
-    setProductsPage(1);
   };
 
   return (
@@ -160,14 +157,11 @@ export default function TransactionsPage() {
         loadingProducts={loadingProducts}
         loading={loading}
         isPointsGainedType={isPointsGainedType}
-        totalProductsPages={totalProductsPages}
-        productsPage={productsPage}
+        isStoreType={isStoreType}
         onFormChange={handleFormChange}
         onSubmit={handleSubmit}
         onClose={handleCloseDialog}
         onProductsScroll={handleProductsScroll}
-        onProductsOpen={handleProductsOpen}
-        setProductsPage={setProductsPage}
       />
 
       {/* Export Dialog */}

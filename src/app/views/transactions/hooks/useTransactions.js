@@ -175,26 +175,24 @@ export const useTransactions = () => {// Main data states
     }
   };
 
-  // Fetch products with pagination
-  const fetchProducts = async () => {
+  // Fetch more products pages (scroll pagination)
+  const fetchProductsPage = async (page) => {
     try {
       setLoadingProducts(true);
-      const data = await productService.getAll({
-        page: productsPage,
-        perPage: 10,
-      });
-
-      const productsList = (data.products || []).map((p) => ({
-        id: p.id,
-        name: p.name,
-        points: p.points,
-        type_name: p.type_name,
-      }));
-
-      setProducts((prev) => [...prev, ...productsList]);
+      const data = await productService.getAll({ page, perPage: 10 });
+      setProducts((prev) => [
+        ...prev,
+        ...(data.products || []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          points: p.points,
+          type_name: p.type_name,
+        })),
+      ]);
       setTotalProductsPages(data.total_pages || 1);
+      setProductsPage(page);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error("Error fetching products page:", error);
     } finally {
       setLoadingProducts(false);
     }
@@ -210,18 +208,39 @@ export const useTransactions = () => {// Main data states
   }, []);
 
   useEffect(() => {
-    if (openDialog) {
-      fetchUsers();
-      setProducts([]);
-      setProductsPage(1);
-    }
-  }, [openDialog]);
+    if (!openDialog) return;
 
-  useEffect(() => {
-    if (openDialog && productsPage <= totalProductsPages) {
-      fetchProducts();
-    }
-  }, [openDialog, productsPage]);
+    let cancelled = false;
+
+    fetchUsers();
+
+    const loadProducts = async () => {
+      try {
+        setLoadingProducts(true);
+        const data = await productService.getAll({ page: 1, perPage: 10 });
+        if (cancelled) return;
+        setProducts(
+          (data.products || []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            points: p.points,
+            type_name: p.type_name,
+          }))
+        );
+        setTotalProductsPages(data.total_pages || 1);
+        setProductsPage(1);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        toast.error("Erro ao carregar produtos");
+      } finally {
+        if (!cancelled) setLoadingProducts(false);
+      }
+    };
+
+    loadProducts();
+
+    return () => { cancelled = true; };
+  }, [openDialog]);
 
   // Handlers
   const handleFilterChange = (e) => {
@@ -248,7 +267,13 @@ export const useTransactions = () => {// Main data states
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      if (name === "typeID" && ![7, 8].includes(Number(value))) {
+        updated.productID = "";
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -407,6 +432,7 @@ export const useTransactions = () => {// Main data states
     setProductsPage,
     setTransactionProductsById,
     fetchTransactions,
+    fetchProductsPage,
 
     // Export handler
     handleExportTransactions: async (exportFilters) => {
@@ -430,6 +456,7 @@ export const useTransactions = () => {// Main data states
 
     // Helpers
     isPointsGainedType: (typeId) => [1, 2, 3, 9, 10].includes(Number(typeId)),
+    isStoreType: (typeId) => [7, 8].includes(Number(typeId)),
     getPointsColor: (points) => (points > 0 ? "success" : "error"),
   };
 };

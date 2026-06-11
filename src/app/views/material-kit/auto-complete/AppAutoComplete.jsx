@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Card,
@@ -410,120 +410,115 @@ export default function TransactionsPage() {
     fetchFilterUsers();
   }, []);
 
-  // Buscar usuários para o select do modal
+  // Buscar usuários e produtos para o modal
   useEffect(() => {
+    if (!openDialog) return;
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+    const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
+
+    let cancelled = false;
+
     async function fetchUsers() {
-      const token = localStorage.getItem("accessToken");
-      if (!token) return;
-
-      const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
-      const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
-
       try {
         setLoadingUsers(true);
         const res = await fetch(`${apiHost}/users`, {
           method: "GET",
-          headers: {
-            accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { accept: "application/json", Authorization: `Bearer ${token}` },
         });
-
+        if (cancelled) return;
         if (!res.ok) {
-          let errorMessage = "";
-          try {
-            const errorData = await res.json();
-            errorMessage = errorData.message || errorData.error || "";
-          } catch (e) {
-            errorMessage = await res.text();
-          }
-
-          const friendlyMessage = interpretApiError(errorMessage, res.status, "user");
-          enqueueSnackbar(friendlyMessage, { variant: "error" });
-          console.error(`Erro ao buscar usuários (${res.status}):`, errorMessage);
-          setLoadingUsers(false);
+          const err = await res.json().catch(() => ({}));
+          enqueueSnackbar(interpretApiError(err.message || err.error || "", res.status, "user"), { variant: "error" });
           return;
         }
-
         const json = await res.json();
-        const usersList = (json.users || json || []).map((u) => ({
+        if (cancelled) return;
+        setUsers((json.users || json || []).map((u) => ({
           id: u.id,
           name: u.username || u.name || `Usuário ${u.id}`,
           username: u.username,
-        }));
-        setUsers(usersList);
-      } catch (error) {
-        console.error("Erro ao buscar usuários:", error);
+        })));
+      } catch (e) {
+        console.error("Erro ao buscar usuários:", e);
       } finally {
-        setLoadingUsers(false);
+        if (!cancelled) setLoadingUsers(false);
       }
     }
 
-    if (openDialog) {
-      fetchUsers();
-      // Resetar produtos ao abrir modal
-      setProducts([]);
-      setProductsPage(1);
-    }
-  }, [openDialog]);
-
-  // Buscar produtos com scroll paginado
-  useEffect(() => {
     async function fetchProducts() {
-      const token = localStorage.getItem("accessToken");
-      if (!token) return;
-
-      const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
-      const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
-
       try {
         setLoadingProducts(true);
-        const res = await fetch(`${apiHost}/products?page=${productsPage}&per_page=10`, {
+        const res = await fetch(`${apiHost}/products?page=1&per_page=10`, {
           method: "GET",
-          headers: {
-            accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { accept: "application/json", Authorization: `Bearer ${token}` },
         });
-
+        if (cancelled) return;
         if (!res.ok) {
-          let errorMessage = "";
-          try {
-            const errorData = await res.json();
-            errorMessage = errorData.message || errorData.error || "";
-          } catch (e) {
-            errorMessage = await res.text();
-          }
-
-          const friendlyMessage = interpretApiError(errorMessage, res.status, "product");
-          enqueueSnackbar(friendlyMessage, { variant: "error" });
-          console.error(`Erro ao buscar produtos (${res.status}):`, errorMessage);
-          setLoadingProducts(false);
+          const err = await res.json().catch(() => ({}));
+          enqueueSnackbar(interpretApiError(err.message || err.error || "", res.status, "product"), { variant: "error" });
           return;
         }
-
         const json = await res.json();
-        const productsList = (json.products || []).map((p) => ({
+        if (cancelled) return;
+        setProducts((json.products || []).map((p) => ({
           id: p.id,
           name: p.name,
           points: p.points,
           type_name: p.type_name,
-        }));
-
-        // Adicionar novos produtos à lista existente (para paginação infinita)
-        setProducts((prev) => [...prev, ...productsList]);
+        })));
         setTotalProductsPages(json.total_pages || 1);
-      } catch (error) {
-        console.error("Erro ao buscar produtos:", error);
+        setProductsPage(1);
+      } catch (e) {
+        console.error("Erro ao buscar produtos:", e);
+        enqueueSnackbar("Erro ao carregar produtos", { variant: "error" });
       } finally {
-        setLoadingProducts(false);
+        if (!cancelled) setLoadingProducts(false);
       }
     }
 
-    if (openDialog && productsPage <= totalProductsPages) {
-      fetchProducts();
+    fetchUsers();
+    fetchProducts();
+
+    return () => { cancelled = true; };
+  }, [openDialog, enqueueSnackbar]);
+
+  const fetchProductsPage = useCallback(async (page) => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    const runtimeApiHost = window.__ENV__?.VITE_REACT_APP_API_HOST;
+    const apiHost = runtimeApiHost || import.meta.env.VITE_REACT_APP_API_HOST;
+
+    try {
+      setLoadingProducts(true);
+      const res = await fetch(`${apiHost}/products?page=${page}&per_page=10`, {
+        method: "GET",
+        headers: { accept: "application/json", Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        enqueueSnackbar(interpretApiError(err.message || err.error || "", res.status, "product"), { variant: "error" });
+        return;
+      }
+      const json = await res.json();
+      setProducts((prev) => [...prev, ...(json.products || []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        points: p.points,
+        type_name: p.type_name,
+      }))]);
+      setTotalProductsPages(json.total_pages || 1);
+      setProductsPage(page);
+    } catch (e) {
+      console.error("Erro ao buscar produtos (página):", e);
+    } finally {
+      setLoadingProducts(false);
     }
-  }, [openDialog, productsPage]);
+  }, [enqueueSnackbar]);
 
   // Handlers para Filtros
   const handleFilterChange = (e) => {
@@ -542,6 +537,8 @@ export default function TransactionsPage() {
       productID: "",
     });
     setEditingId(null);
+    setProducts([]);
+    setProductsPage(1);
     setOpenDialog(true);
   };
 
@@ -551,7 +548,13 @@ export default function TransactionsPage() {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      if (name === "typeID" && ![7, 8].includes(parseInt(value))) {
+        updated.productID = "";
+      }
+      return updated;
+    });
   };
 
 
@@ -694,6 +697,8 @@ export default function TransactionsPage() {
       productID: transaction.productID || "",
     });
     setEditingId(transaction.id);
+    setProducts([]);
+    setProductsPage(1);
     setOpenDialog(true);
   };
 
@@ -978,18 +983,30 @@ export default function TransactionsPage() {
     return points > 0 ? "success" : "error";
   };
 
-  // Verificar se o tipo selecionado é "Pontos Ganhos"
   const isPointsGainedType = (typeId) => {
     return [1, 2, 3, 9, 10].includes(parseInt(typeId));
+  };
+
+  // Produto só é selecionável em transações de loja (Virtual ou Física)
+  const isStoreType = (typeId) => {
+    return [7, 8].includes(parseInt(typeId));
+  };
+
+  const getProductPlaceholder = (typeId) => {
+    if (!typeId) return "Selecione o tipo de transação primeiro";
+    if (!isStoreType(typeId)) return "Disponível apenas para Loja Virtual/Física";
+    if (loadingProducts) return "Carregando produtos...";
+    return "Selecione um Produto (Opcional)";
   };
 
   // Handler para scroll infinito no Select de produtos
   const handleProductsScroll = (event) => {
     const listboxNode = event.currentTarget;
     if (listboxNode.scrollTop + listboxNode.clientHeight === listboxNode.scrollHeight) {
-      // Usuário scrollou até o final, carregar próxima página
       if (productsPage < totalProductsPages && !loadingProducts) {
-        setProductsPage((prev) => prev + 1);
+        const nextPage = productsPage + 1;
+        setProductsPage(nextPage);
+        fetchProductsPage(nextPage, false);
       }
     }
   };
@@ -1486,43 +1503,34 @@ export default function TransactionsPage() {
             </Select>
             <Select
               fullWidth
-              label="Produto (Opcional)"
               name="productID"
               value={formData.productID}
               onChange={handleFormChange}
-              disabled={isPointsGainedType(formData.typeID) || loadingProducts}
-              onOpen={() => {
-                setProducts([]);
-                setProductsPage(1);
-              }}
+              disabled={!isStoreType(formData.typeID) || loadingProducts}
               MenuProps={{
                 PaperProps: {
                   onScroll: handleProductsScroll,
                   sx: {
                     maxHeight: "300px",
-                    "&::-webkit-scrollbar": {
-                      width: "8px",
-                    },
-                    "&::-webkit-scrollbar-track": {
-                      background: "#f1f1f1",
-                    },
-                    "&::-webkit-scrollbar-thumb": {
-                      background: "#888",
-                      borderRadius: "4px",
-                    },
+                    "&::-webkit-scrollbar": { width: "8px" },
+                    "&::-webkit-scrollbar-track": { background: "#f1f1f1" },
+                    "&::-webkit-scrollbar-thumb": { background: "#888", borderRadius: "4px" },
                   },
                 },
               }}
               displayEmpty
+              renderValue={(selected) => {
+                if (!selected) return <Box sx={{ color: "text.disabled", fontStyle: "italic" }}>{getProductPlaceholder(formData.typeID)}</Box>;
+                const found = products.find((p) => p.id === selected);
+                return found ? `${found.name} - ${found.points.toLocaleString()} pts` : selected;
+              }}
             >
               <MenuItem value="">
-                {isPointsGainedType(formData.typeID)
-                  ? "Desabilitado para Pontos Ganhos"
-                  : loadingProducts
-                    ? "Carregando produtos..."
-                    : "Selecione um Produto"}
+                <Box sx={{ color: "text.secondary", fontStyle: "italic" }}>
+                  {getProductPlaceholder(formData.typeID)}
+                </Box>
               </MenuItem>
-              {products.map((product) => (
+              {isStoreType(formData.typeID) && products.map((product) => (
                 <MenuItem key={product.id} value={product.id}>
                   {product.name} - {product.points.toLocaleString()} pts ({product.type_name})
                 </MenuItem>
