@@ -161,8 +161,8 @@ const TRANSACTION_TYPES = [
 ];
 
 const PAYMENT_METHODS = [
-  { id: 2, name: "Policoins" },
-  { id: 1, name: "Desconto em folha" },
+  { id: 1, name: "Policoins" },
+  { id: 2, name: "Desconto em folha" },
 ];
 
 export default function TransactionsPage() {

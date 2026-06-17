@@ -13,8 +13,8 @@ export const TRANSACTION_TYPES = [
 ];
 
 export const PAYMENT_METHODS = [
-  { id: 2, name: "Policoins" },
-  { id: 1, name: "Desconto em folha" },
+  { id: 1, name: "Policoins" },
+  { id: 2, name: "Desconto em folha" },
 ];
 
 export const PRODUCT_TYPES = [
