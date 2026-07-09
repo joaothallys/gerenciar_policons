@@ -154,9 +154,9 @@ export default function MetasPage() {
         return;
       }
 
-      const meta_perc = parseInt(formData.meta_perc);
-      if (meta_perc < 0 || meta_perc > 1000) {
-        toast.warning("Meta deve estar entre 0 e 1000");
+      const meta_perc = parseFloat(String(formData.meta_perc).replace(",", "."));
+      if (isNaN(meta_perc) || meta_perc < 0 || meta_perc > 1000) {
+        toast.warning("Meta deve ser um número entre 0 e 1000");
         setLoading(false);
         return;
       }
@@ -420,8 +420,8 @@ export default function MetasPage() {
               name="meta_perc"
               value={formData.meta_perc}
               onChange={handleFormChange}
-              inputProps={{ min: "0", max: "1000" }}
-              helperText="Entre 0 e 1000"
+              inputProps={{ min: "0", max: "1000", step: "0.01" }}
+              helperText="Entre 0 e 1000 (ex: 100, 120.5)"
             />
           </Box>
         </DialogContent>
