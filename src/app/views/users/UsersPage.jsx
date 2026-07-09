@@ -1,5 +1,6 @@
 import { Box, Pagination } from "@mui/material";
 import { Breadcrumb } from "app/components";
+import { ConfirmDeleteDialog } from "app/components/shared";
 import { styled } from "@mui/material/styles";
 import { useUsers } from "./hooks/useUsers";
 import UserFilters from "./components/UserFilters";
@@ -22,68 +23,74 @@ export default function UsersPage() {
   const {
     users,
     filters,
+    viewMode,
     page,
     totalPages,
     openDialog,
     dialogMode,
     formData,
+    userToDelete,
     stats,
     fetching,
     loading,
     handleFilterChange,
+    handleViewModeChange,
     handleClearFilters,
     handleOpenDialog,
     handleCloseDialog,
     handleFormChange,
     handleSubmit,
     handleEdit,
-    handleDelete,
+    handleRequestDelete,
+    handleCancelDelete,
+    handleConfirmDelete,
+    handleRestore,
     handleChangePassword,
     setPage,
   } = useUsers();
 
   return (
     <Container>
-      {/* Breadcrumb */}
       <Box className="breadcrumb">
         <Breadcrumb
           routeSegments={[
             { name: "Usuários", path: "/users" },
-            { name: "Usuários" },
+            { name: viewMode === "deleted" ? "Deletados" : "Ativos" },
           ]}
         />
       </Box>
 
-      {/* Statistics */}
-      <UserStatsRow stats={stats} />
+      <UserStatsRow stats={stats} viewMode={viewMode} />
 
-      {/* Filters */}
       <UserFilters
         filters={filters}
+        viewMode={viewMode}
         fetching={fetching}
         onFilterChange={handleFilterChange}
+        onViewModeChange={handleViewModeChange}
         onOpenDialog={handleOpenDialog}
         onClearFilters={handleClearFilters}
       />
 
-      {/* Desktop Table */}
       <UserTable
         users={users}
+        viewMode={viewMode}
         loading={fetching}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleRequestDelete}
         onChangePassword={handleChangePassword}
+        onRestore={handleRestore}
       />
 
-      {/* Mobile Cards */}
       <UserCards
         users={users}
+        viewMode={viewMode}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleRequestDelete}
         onChangePassword={handleChangePassword}
+        onRestore={handleRestore}
       />
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 3, mb: 2 }}>
           <Pagination
@@ -109,7 +116,6 @@ export default function UsersPage() {
         </Box>
       )}
 
-      {/* Dialog for Create/Edit */}
       <UserDialog
         open={openDialog}
         dialogMode={dialogMode}
@@ -118,6 +124,19 @@ export default function UsersPage() {
         onFormChange={handleFormChange}
         onSubmit={handleSubmit}
         onClose={handleCloseDialog}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!userToDelete}
+        title="Confirmar exclusão de usuário"
+        message={
+          userToDelete
+            ? `Tem certeza que deseja deletar o usuário "${userToDelete.username}" (${userToDelete.email})? O usuário poderá ser restaurado posteriormente na aba Deletados.`
+            : ""
+        }
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        loading={loading}
       />
     </Container>
   );

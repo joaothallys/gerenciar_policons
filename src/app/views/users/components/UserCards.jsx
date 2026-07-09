@@ -3,6 +3,7 @@ import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import LockIcon from "@mui/icons-material/Lock";
+import RestoreIcon from "@mui/icons-material/Restore";
 
 const MobileCardsContainer = styled(Box)(({ theme }) => ({
   display: "none",
@@ -11,12 +12,18 @@ const MobileCardsContainer = styled(Box)(({ theme }) => ({
   },
 }));
 
-const UserCard = styled(Card)(({ theme }) => ({
+const UserCard = styled(Card, {
+  shouldForwardProp: (prop) => prop !== "isDeleted",
+})(({ theme, isDeleted }) => ({
   padding: "16px",
   marginBottom: "16px",
   boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
   borderRadius: "12px",
   transition: "all 0.3s ease",
+  ...(isDeleted && {
+    backgroundColor: "rgba(0,0,0,0.02)",
+    border: "1px dashed #e0e0e0",
+  }),
   "&:hover": {
     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     transform: "translateY(-2px)",
@@ -25,15 +32,22 @@ const UserCard = styled(Card)(({ theme }) => ({
 
 export default function UserCards({
   users,
+  viewMode = "active",
   onEdit,
   onDelete,
   onChangePassword,
+  onRestore,
 }) {
+  const isDeletedView = viewMode === "deleted";
+  const emptyMessage = isDeletedView
+    ? "Nenhum usuário deletado encontrado"
+    : "Nenhum usuário encontrado";
+
   if (users.length === 0) {
     return (
       <MobileCardsContainer>
         <Box textAlign="center" py={5} color="text.secondary">
-          Nenhum usuário encontrado
+          {emptyMessage}
         </Box>
       </MobileCardsContainer>
     );
@@ -42,8 +56,7 @@ export default function UserCards({
   return (
     <MobileCardsContainer>
       {users.map((user) => (
-        <UserCard key={user.id}>
-          {/* Header */}
+        <UserCard key={user.id} isDeleted={isDeletedView}>
           <Box
             sx={{
               display: "flex",
@@ -53,8 +66,18 @@ export default function UserCards({
             }}
           >
             <Box sx={{ flex: 1 }}>
-              <Box sx={{ fontWeight: 700, fontSize: "15px", mb: 0.5 }}>
-                {user.username}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                <Box sx={{ fontWeight: 700, fontSize: "15px" }}>
+                  {user.username}
+                </Box>
+                {isDeletedView && (
+                  <Chip
+                    label="Deletado"
+                    color="default"
+                    size="small"
+                    variant="outlined"
+                  />
+                )}
               </Box>
               <Box sx={{ fontSize: "12px", color: "text.secondary" }}>
                 {user.email}
@@ -69,7 +92,6 @@ export default function UserCards({
             />
           </Box>
 
-          {/* Info Grid */}
           <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
             <Grid item xs={6}>
               <Box
@@ -97,15 +119,14 @@ export default function UserCards({
                   fontWeight: 600,
                 }}
               >
-                Data Criação
+                {isDeletedView ? "Data Exclusão" : "Data Criação"}
               </Box>
               <Box sx={{ fontSize: "13px" }}>
-                {user.created_at}
+                {isDeletedView ? user.deleted_at : user.created_at}
               </Box>
             </Grid>
           </Grid>
 
-          {/* Action Buttons */}
           <Box
             sx={{
               display: "flex",
@@ -115,40 +136,56 @@ export default function UserCards({
               borderTop: "1px solid #f0f0f0",
             }}
           >
-            <Button
-              fullWidth
-              size="small"
-              variant="outlined"
-              startIcon={<EditIcon fontSize="small" />}
-              onClick={() => onEdit(user)}
-              sx={{ fontSize: "12px", py: 0.8 }}
-            >
-              Editar
-            </Button>
-            <Box sx={{ display: "flex", gap: 1 }}>
+            {isDeletedView ? (
               <Button
                 fullWidth
                 size="small"
                 variant="outlined"
-                color="warning"
-                startIcon={<LockIcon fontSize="small" />}
-                onClick={() => onChangePassword(user.id)}
+                color="success"
+                startIcon={<RestoreIcon fontSize="small" />}
+                onClick={() => onRestore(user.id)}
                 sx={{ fontSize: "12px", py: 0.8 }}
               >
-                Senha
+                Restaurar
               </Button>
-              <Button
-                fullWidth
-                size="small"
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon fontSize="small" />}
-                onClick={() => onDelete(user.id)}
-                sx={{ fontSize: "12px", py: 0.8 }}
-              >
-                Deletar
-              </Button>
-            </Box>
+            ) : (
+              <>
+                <Button
+                  fullWidth
+                  size="small"
+                  variant="outlined"
+                  startIcon={<EditIcon fontSize="small" />}
+                  onClick={() => onEdit(user)}
+                  sx={{ fontSize: "12px", py: 0.8 }}
+                >
+                  Editar
+                </Button>
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<LockIcon fontSize="small" />}
+                    onClick={() => onChangePassword(user.id)}
+                    sx={{ fontSize: "12px", py: 0.8 }}
+                  >
+                    Senha
+                  </Button>
+                  <Button
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon fontSize="small" />}
+                    onClick={() => onDelete(user.id)}
+                    sx={{ fontSize: "12px", py: 0.8 }}
+                  >
+                    Deletar
+                  </Button>
+                </Box>
+              </>
+            )}
           </Box>
         </UserCard>
       ))}

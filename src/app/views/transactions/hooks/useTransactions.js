@@ -147,7 +147,9 @@ export const useTransactions = () => {// Main data states
     try {
       setLoadingFilterUsers(true);
       const data = await userService.getAll();
-      const usersList = (data.users || data || []).map((u) => ({
+      const usersList = (data.users || data || [])
+        .filter((u) => !u.deleted_at)
+        .map((u) => ({
         id: u.id,
         name: u.username || u.name || `Usuário ${u.id}`,
         username: u.username,
@@ -166,7 +168,9 @@ export const useTransactions = () => {// Main data states
     try {
       setLoadingUsers(true);
       const data = await userService.getAll();
-      const usersList = (data.users || data || []).map((u) => ({
+      const usersList = (data.users || data || [])
+        .filter((u) => !u.deleted_at)
+        .map((u) => ({
         id: u.id,
         name: u.username || u.name || `Usuário ${u.id}`,
         username: u.username,

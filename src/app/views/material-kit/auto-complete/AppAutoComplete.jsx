@@ -393,7 +393,9 @@ export default function TransactionsPage() {
         }
 
         const json = await res.json();
-        const usersList = (json.users || json || []).map((u) => ({
+        const usersList = (json.users || json || [])
+          .filter((u) => !u.deleted_at)
+          .map((u) => ({
           id: u.id,
           name: u.username || u.name || `Usuário ${u.id}`,
           username: u.username,
@@ -437,7 +439,9 @@ export default function TransactionsPage() {
         }
         const json = await res.json();
         if (cancelled) return;
-        setUsers((json.users || json || []).map((u) => ({
+        setUsers((json.users || json || [])
+          .filter((u) => !u.deleted_at)
+          .map((u) => ({
           id: u.id,
           name: u.username || u.name || `Usuário ${u.id}`,
           username: u.username,

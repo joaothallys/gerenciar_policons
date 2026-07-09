@@ -14,6 +14,7 @@ import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import LockIcon from "@mui/icons-material/Lock";
+import RestoreIcon from "@mui/icons-material/Restore";
 import { SimpleCard } from "app/components";
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
@@ -44,11 +45,19 @@ const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
 
 export default function UserTable({
   users,
+  viewMode = "active",
   loading,
   onEdit,
   onDelete,
   onChangePassword,
+  onRestore,
 }) {
+  const isDeletedView = viewMode === "deleted";
+  const cardTitle = isDeletedView ? "Usuários Deletados" : "Usuários Ativos";
+  const emptyMessage = isDeletedView
+    ? "Nenhum usuário deletado encontrado"
+    : "Nenhum usuário encontrado";
+
   if (loading && users.length === 0) {
     return (
       <Box display="flex" justifyContent="center" py={5}>
@@ -59,16 +68,16 @@ export default function UserTable({
 
   if (users.length === 0) {
     return (
-      <SimpleCard title="Usuários">
+      <SimpleCard title={cardTitle}>
         <Box textAlign="center" py={5} color="text.secondary">
-          Nenhum usuário encontrado
+          {emptyMessage}
         </Box>
       </SimpleCard>
     );
   }
 
   return (
-    <SimpleCard title="Usuários">
+    <SimpleCard title={cardTitle}>
       <StyledTableContainer>
         <Table>
           <TableHead>
@@ -77,16 +86,31 @@ export default function UserTable({
               <TableCell>Email</TableCell>
               <TableCell align="center">Papel</TableCell>
               <TableCell align="center">Pontos Totais</TableCell>
-              <TableCell align="center">Data Criação</TableCell>
+              <TableCell align="center">
+                {isDeletedView ? "Data Exclusão" : "Data Criação"}
+              </TableCell>
               <TableCell align="center">Ações</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {users.map((user) => (
-              <TableRow key={user.id}>
+              <TableRow
+                key={user.id}
+                sx={isDeletedView ? { backgroundColor: "rgba(0,0,0,0.02)" } : undefined}
+              >
                 <TableCell>
-                  <Box sx={{ fontWeight: 600, fontSize: "14px" }}>
-                    {user.username}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ fontWeight: 600, fontSize: "14px" }}>
+                      {user.username}
+                    </Box>
+                    {isDeletedView && (
+                      <Chip
+                        label="Deletado"
+                        color="default"
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
                 </TableCell>
                 <TableCell sx={{ fontSize: "13px" }}>
@@ -107,7 +131,7 @@ export default function UserTable({
                   </Box>
                 </TableCell>
                 <TableCell align="center" sx={{ fontSize: "13px" }}>
-                  {user.created_at}
+                  {isDeletedView ? user.deleted_at : user.created_at}
                 </TableCell>
                 <TableCell align="center">
                   <Box
@@ -118,47 +142,66 @@ export default function UserTable({
                       flexWrap: "wrap",
                     }}
                   >
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<EditIcon fontSize="small" />}
-                      onClick={() => onEdit(user)}
-                      sx={{
-                        fontSize: { xs: "10px", sm: "12px" },
-                        padding: { xs: "3px 6px", sm: "5px 8px" },
-                        minWidth: "auto",
-                      }}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="warning"
-                      startIcon={<LockIcon fontSize="small" />}
-                      onClick={() => onChangePassword(user.id)}
-                      sx={{
-                        fontSize: { xs: "10px", sm: "12px" },
-                        padding: { xs: "3px 6px", sm: "5px 8px" },
-                        minWidth: "auto",
-                      }}
-                    >
-                      Senha
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      startIcon={<DeleteIcon fontSize="small" />}
-                      onClick={() => onDelete(user.id)}
-                      sx={{
-                        fontSize: { xs: "10px", sm: "12px" },
-                        padding: { xs: "3px 6px", sm: "5px 8px" },
-                        minWidth: "auto",
-                      }}
-                    >
-                      Deletar
-                    </Button>
+                    {isDeletedView ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="success"
+                        startIcon={<RestoreIcon fontSize="small" />}
+                        onClick={() => onRestore(user.id)}
+                        sx={{
+                          fontSize: { xs: "10px", sm: "12px" },
+                          padding: { xs: "3px 6px", sm: "5px 8px" },
+                          minWidth: "auto",
+                        }}
+                      >
+                        Restaurar
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<EditIcon fontSize="small" />}
+                          onClick={() => onEdit(user)}
+                          sx={{
+                            fontSize: { xs: "10px", sm: "12px" },
+                            padding: { xs: "3px 6px", sm: "5px 8px" },
+                            minWidth: "auto",
+                          }}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          startIcon={<LockIcon fontSize="small" />}
+                          onClick={() => onChangePassword(user.id)}
+                          sx={{
+                            fontSize: { xs: "10px", sm: "12px" },
+                            padding: { xs: "3px 6px", sm: "5px 8px" },
+                            minWidth: "auto",
+                          }}
+                        >
+                          Senha
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon fontSize="small" />}
+                          onClick={() => onDelete(user.id)}
+                          sx={{
+                            fontSize: { xs: "10px", sm: "12px" },
+                            padding: { xs: "3px 6px", sm: "5px 8px" },
+                            minWidth: "auto",
+                          }}
+                        >
+                          Deletar
+                        </Button>
+                      </>
+                    )}
                   </Box>
                 </TableCell>
               </TableRow>

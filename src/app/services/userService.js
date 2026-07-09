@@ -61,6 +61,17 @@ export const userService = {
     }
   },
 
+  // Restore soft-deleted user
+  restore: async (id) => {
+    try {
+      const response = await api.patch(`/users/restore/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error restoring user:", error);
+      throw error;
+    }
+  },
+
   // Change user password
   changePassword: async (id, password) => {
     try {

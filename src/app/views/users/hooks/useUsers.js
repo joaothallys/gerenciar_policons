@@ -4,26 +4,41 @@ import { userService } from "app/services/userService";
 import { interpretApiError } from "app/utils/apiErrorHandler";
 import { USER_ROLES } from "app/constants";
 
-export const useUsers = () => {
+const mapUser = (u) => ({
+  id: u.id,
+  email: u.email,
+  username: u.username,
+  role_id: u.role_id,
+  role_name:
+    USER_ROLES.find((r) => r.id === u.role_id)?.name || "Desconhecido",
+  points_eligible: Number(u.points_eligible || 0),
+  points_sum: Number(u.points_sum || 0),
+  created_at: u.created_at
+    ? new Date(u.created_at).toLocaleDateString("pt-BR")
+    : "-",
+  deleted_at: u.deleted_at
+    ? new Date(u.deleted_at).toLocaleDateString("pt-BR")
+    : null,
+  isDeleted: !!u.deleted_at,
+});
 
-  // Main data states
+export const useUsers = () => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
+  const [viewMode, setViewMode] = useState("active");
 
-  // Filter states
   const [filters, setFilters] = useState({
     search: "",
     roleFilter: "",
   });
 
-  // Pagination
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Form states
   const [openDialog, setOpenDialog] = useState(false);
-  const [dialogMode, setDialogMode] = useState("create"); // create, edit, delete
+  const [dialogMode, setDialogMode] = useState("create");
   const [selectedUser, setSelectedUser] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
   const [formData, setFormData] = useState({
     email: "",
     username: "",
@@ -36,33 +51,16 @@ export const useUsers = () => {
     password: "",
   });
 
-  // Loading states
   const [fetching, setFetching] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Fetch users from API
   const fetchUsers = async (searchQuery = null) => {
     try {
       setFetching(true);
       const data = await userService.getAll(searchQuery || filters.search || null);
 
-      // Map and filter soft-deleted users
       const usersData = Array.isArray(data) ? data : data.users || [];
-      const mapped = usersData
-        .filter((u) => !u.deleted_at) // Filter soft-deleted users
-        .map((u) => ({
-          id: u.id,
-          email: u.email,
-          username: u.username,
-          role_id: u.role_id,
-          role_name:
-            USER_ROLES.find((r) => r.id === u.role_id)?.name || "Desconhecido",
-          points_eligible: Number(u.points_eligible || 0),
-          points_sum: Number(u.points_sum || 0),
-          created_at: u.created_at
-            ? new Date(u.created_at).toLocaleDateString("pt-BR")
-            : "-",
-        }));
+      const mapped = usersData.map(mapUser);
 
       setUsers(mapped);
     } catch (error) {
@@ -74,14 +72,14 @@ export const useUsers = () => {
     }
   };
 
-  // Effects
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Filter users locally
   useEffect(() => {
-    let result = users;
+    let result = users.filter((user) =>
+      viewMode === "deleted" ? user.isDeleted : !user.isDeleted
+    );
 
     if (filters.search) {
       result = result.filter(
@@ -97,19 +95,23 @@ export const useUsers = () => {
 
     setFilteredUsers(result);
     setPage(1);
-  }, [filters, users]);
+  }, [filters, users, viewMode]);
 
-  // Pagination
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const paginatedUsers = filteredUsers.slice(
     (page - 1) * itemsPerPage,
     page * itemsPerPage
   );
 
-  // Handlers
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleViewModeChange = (newMode) => {
+    if (newMode !== null) {
+      setViewMode(newMode);
+    }
   };
 
   const handleClearFilters = () => {
@@ -154,7 +156,6 @@ export const useUsers = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
-    // Validação em tempo real para email
     if (name === "email") {
       if (!value) {
         setFormErrors((prev) => ({ ...prev, email: "" }));
@@ -165,7 +166,6 @@ export const useUsers = () => {
       }
     }
 
-    // Validação para username
     if (name === "username") {
       if (!value) {
         setFormErrors((prev) => ({ ...prev, username: "" }));
@@ -176,7 +176,6 @@ export const useUsers = () => {
       }
     }
 
-    // Validação para password (apenas em create)
     if (name === "password" && dialogMode === "create") {
       if (!value) {
         setFormErrors((prev) => ({ ...prev, password: "" }));
@@ -195,21 +194,18 @@ export const useUsers = () => {
     setLoading(true);
 
     try {
-      // Validação de campos vazios
       if (!formData.email || !formData.username) {
         toast.warning("Preencha email e username");
         setLoading(false);
         return;
       }
 
-      // Validação de email
       if (!validateEmail(formData.email)) {
         toast.error("Email inválido. Formato: exemplo@dominio.com");
         setLoading(false);
         return;
       }
 
-      // Validação de username
       if (formData.username.length < 3) {
         toast.error("Username deve ter mínimo 3 caracteres");
         setLoading(false);
@@ -222,7 +218,6 @@ export const useUsers = () => {
         return;
       }
 
-      // Validação de password em create
       if (dialogMode === "create" && formData.password.length < 6) {
         toast.error("Senha deve ter mínimo 6 caracteres");
         setLoading(false);
@@ -262,16 +257,45 @@ export const useUsers = () => {
     handleOpenDialog("edit", user);
   };
 
-  const handleDelete = async (userId) => {
+  const handleRequestDelete = (userId) => {
+    const user = users.find((u) => u.id === userId);
+    if (user) {
+      setUserToDelete(user);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setUserToDelete(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+
     try {
       setLoading(true);
-      await userService.remove(userId);
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      await userService.remove(userToDelete.id);
+      setUserToDelete(null);
       toast.success("Usuário deletado com sucesso!");
+      await fetchUsers();
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "user");
       toast.error(message);
       console.error("Error deleting user:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRestore = async (userId) => {
+    try {
+      setLoading(true);
+      await userService.restore(userId);
+      toast.success("Usuário restaurado com sucesso!");
+      await fetchUsers();
+    } catch (error) {
+      const message = interpretApiError(error.message, error.response?.status, "user");
+      toast.error(message);
+      console.error("Error restoring user:", error);
     } finally {
       setLoading(false);
     }
@@ -293,41 +317,49 @@ export const useUsers = () => {
     }
   };
 
-  // Statistics
+  const visibleUsers = users.filter((u) =>
+    viewMode === "deleted" ? u.isDeleted : !u.isDeleted
+  );
+
   const stats = {
-    total: users.length,
-    admins: users.filter((u) => u.role_id === 2).length,
-    regulars: users.filter((u) => u.role_id === 1).length,
-    totalPoints: users.reduce((sum, u) => sum + u.points_sum, 0),
+    total: visibleUsers.length,
+    admins: visibleUsers.filter((u) => u.role_id === 2).length,
+    regulars: visibleUsers.filter((u) => u.role_id === 1).length,
+    totalPoints: visibleUsers.reduce((sum, u) => sum + u.points_sum, 0),
+    deletedTotal: users.filter((u) => u.isDeleted).length,
+    activeTotal: users.filter((u) => !u.isDeleted).length,
   };
 
   return {
-    // Data
     users: paginatedUsers,
     filteredUsers,
     filters,
+    viewMode,
     page,
     totalPages,
     openDialog,
     dialogMode,
     selectedUser,
+    userToDelete,
     formData,
     formErrors,
     stats,
 
-    // Loading states
     fetching,
     loading,
 
-    // Handlers
     handleFilterChange,
+    handleViewModeChange,
     handleClearFilters,
     handleOpenDialog,
     handleCloseDialog,
     handleFormChange,
     handleSubmit,
     handleEdit,
-    handleDelete,
+    handleRequestDelete,
+    handleCancelDelete,
+    handleConfirmDelete,
+    handleRestore,
     handleChangePassword,
     setPage,
   };
