@@ -177,7 +177,7 @@ export default function UserTable({
                           variant="outlined"
                           color="warning"
                           startIcon={<LockIcon fontSize="small" />}
-                          onClick={() => onChangePassword(user.id)}
+                          onClick={() => onChangePassword(user)}
                           sx={{
                             fontSize: { xs: "10px", sm: "12px" },
                             padding: { xs: "3px 6px", sm: "5px 8px" },

@@ -58,15 +58,18 @@ export default function UserDialog({
             required
           />
 
-          <TextField
-            fullWidth
-            label={dialogMode === "create" ? "Senha *" : "Senha (deixar vazio para manter)"}
-            name="password"
-            type="password"
-            value={formData.password}
-            onChange={onFormChange}
-            required={dialogMode === "create"}
-          />
+          {dialogMode === "create" && (
+            <TextField
+              fullWidth
+              label="Senha"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={onFormChange}
+              required
+              helperText="Mínimo 6 caracteres"
+            />
+          )}
 
           <Select
             fullWidth

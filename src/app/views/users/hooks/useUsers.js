@@ -39,6 +39,17 @@ export const useUsers = () => {
   const [dialogMode, setDialogMode] = useState("create");
   const [selectedUser, setSelectedUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [userToChangePassword, setUserToChangePassword] = useState(null);
+  const [passwordFormData, setPasswordFormData] = useState({
+    old_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+  const [passwordFormErrors, setPasswordFormErrors] = useState({
+    old_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
   const [formData, setFormData] = useState({
     email: "",
     username: "",
@@ -301,14 +312,116 @@ export const useUsers = () => {
     }
   };
 
-  const handleChangePassword = async (userId) => {
-    const newPassword = window.prompt("Digite a nova senha:");
-    if (!newPassword) return;
+  const handleOpenPasswordDialog = (user) => {
+    setUserToChangePassword(user);
+    setPasswordFormData({
+      old_password: "",
+      new_password: "",
+      confirm_password: "",
+    });
+    setPasswordFormErrors({
+      old_password: "",
+      new_password: "",
+      confirm_password: "",
+    });
+  };
+
+  const handleClosePasswordDialog = () => {
+    setUserToChangePassword(null);
+    setPasswordFormData({
+      old_password: "",
+      new_password: "",
+      confirm_password: "",
+    });
+    setPasswordFormErrors({
+      old_password: "",
+      new_password: "",
+      confirm_password: "",
+    });
+  };
+
+  const handlePasswordFormChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "old_password") {
+      setPasswordFormErrors((prev) => ({
+        ...prev,
+        old_password: value ? "" : prev.old_password,
+      }));
+    }
+
+    if (name === "new_password") {
+      setPasswordFormErrors((prev) => ({
+        ...prev,
+        new_password: value && value.length < 6 ? "Mínimo 6 caracteres" : "",
+        confirm_password:
+          passwordFormData.confirm_password && value !== passwordFormData.confirm_password
+            ? "As senhas não coincidem"
+            : passwordFormData.confirm_password
+            ? ""
+            : prev.confirm_password,
+      }));
+    }
+
+    if (name === "confirm_password") {
+      setPasswordFormErrors((prev) => ({
+        ...prev,
+        confirm_password:
+          value && value !== passwordFormData.new_password
+            ? "As senhas não coincidem"
+            : "",
+      }));
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    if (e?.preventDefault) {
+      e.preventDefault();
+    }
+
+    const errors = {
+      old_password: "",
+      new_password: "",
+      confirm_password: "",
+    };
+
+    if (!passwordFormData.old_password) {
+      errors.old_password = "Informe a senha atual";
+    }
+
+    if (!passwordFormData.new_password) {
+      errors.new_password = "Informe a nova senha";
+    } else if (passwordFormData.new_password.length < 6) {
+      errors.new_password = "Mínimo 6 caracteres";
+    }
+
+    if (!passwordFormData.confirm_password) {
+      errors.confirm_password = "Confirme a nova senha";
+    } else if (passwordFormData.new_password !== passwordFormData.confirm_password) {
+      errors.confirm_password = "As senhas não coincidem";
+    }
+
+    if (passwordFormData.old_password && passwordFormData.new_password === passwordFormData.old_password) {
+      errors.new_password = "A nova senha deve ser diferente da atual";
+    }
+
+    const hasErrors = Object.values(errors).some(Boolean);
+    if (hasErrors) {
+      setPasswordFormErrors(errors);
+      return;
+    }
+
+    if (!userToChangePassword) return;
 
     try {
       setLoading(true);
-      await userService.changePassword(userId, newPassword);
+      await userService.changePassword(userToChangePassword.id, {
+        old_password: passwordFormData.old_password,
+        new_password: passwordFormData.new_password,
+      });
       toast.success("Senha alterada com sucesso!");
+      handleClosePasswordDialog();
     } catch (error) {
       const message = interpretApiError(error.message, error.response?.status, "user");
       toast.error(message);
@@ -341,6 +454,9 @@ export const useUsers = () => {
     dialogMode,
     selectedUser,
     userToDelete,
+    userToChangePassword,
+    passwordFormData,
+    passwordFormErrors,
     formData,
     formErrors,
     stats,
@@ -360,6 +476,9 @@ export const useUsers = () => {
     handleCancelDelete,
     handleConfirmDelete,
     handleRestore,
+    handleOpenPasswordDialog,
+    handleClosePasswordDialog,
+    handlePasswordFormChange,
     handleChangePassword,
     setPage,
   };

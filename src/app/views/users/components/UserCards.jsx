@@ -167,7 +167,7 @@ export default function UserCards({
                     variant="outlined"
                     color="warning"
                     startIcon={<LockIcon fontSize="small" />}
-                    onClick={() => onChangePassword(user.id)}
+                    onClick={() => onChangePassword(user)}
                     sx={{ fontSize: "12px", py: 0.8 }}
                   >
                     Senha

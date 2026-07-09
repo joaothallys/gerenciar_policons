@@ -73,10 +73,11 @@ export const userService = {
   },
 
   // Change user password
-  changePassword: async (id, password) => {
+  changePassword: async (id, { old_password, new_password }) => {
     try {
-      const response = await api.put(`/users/${id}/password`, {
-        password,
+      const response = await api.post(`/users/${id}/password`, {
+        old_password,
+        new_password,
       });
       return response.data;
     } catch (error) {

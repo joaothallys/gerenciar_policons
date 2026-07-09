@@ -8,6 +8,7 @@ import UserStatsRow from "./components/UserStatsRow";
 import UserTable from "./components/UserTable";
 import UserCards from "./components/UserCards";
 import UserDialog from "./components/UserDialog";
+import UserPasswordDialog from "./components/UserPasswordDialog";
 
 const Container = styled("div")(({ theme }) => ({
   margin: "30px",
@@ -30,6 +31,9 @@ export default function UsersPage() {
     dialogMode,
     formData,
     userToDelete,
+    userToChangePassword,
+    passwordFormData,
+    passwordFormErrors,
     stats,
     fetching,
     loading,
@@ -45,6 +49,9 @@ export default function UsersPage() {
     handleCancelDelete,
     handleConfirmDelete,
     handleRestore,
+    handleOpenPasswordDialog,
+    handleClosePasswordDialog,
+    handlePasswordFormChange,
     handleChangePassword,
     setPage,
   } = useUsers();
@@ -78,7 +85,7 @@ export default function UsersPage() {
         loading={fetching}
         onEdit={handleEdit}
         onDelete={handleRequestDelete}
-        onChangePassword={handleChangePassword}
+        onChangePassword={handleOpenPasswordDialog}
         onRestore={handleRestore}
       />
 
@@ -87,7 +94,7 @@ export default function UsersPage() {
         viewMode={viewMode}
         onEdit={handleEdit}
         onDelete={handleRequestDelete}
-        onChangePassword={handleChangePassword}
+        onChangePassword={handleOpenPasswordDialog}
         onRestore={handleRestore}
       />
 
@@ -124,6 +131,17 @@ export default function UsersPage() {
         onFormChange={handleFormChange}
         onSubmit={handleSubmit}
         onClose={handleCloseDialog}
+      />
+
+      <UserPasswordDialog
+        open={!!userToChangePassword}
+        user={userToChangePassword}
+        formData={passwordFormData}
+        formErrors={passwordFormErrors}
+        loading={loading}
+        onFormChange={handlePasswordFormChange}
+        onSubmit={handleChangePassword}
+        onClose={handleClosePasswordDialog}
       />
 
       <ConfirmDeleteDialog
