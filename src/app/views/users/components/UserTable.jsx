@@ -6,9 +6,10 @@ import {
   TableHead,
   TableRow,
   Box,
-  Button,
   Chip,
   CircularProgress,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
@@ -16,6 +17,55 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import LockIcon from "@mui/icons-material/Lock";
 import RestoreIcon from "@mui/icons-material/Restore";
 import { SimpleCard } from "app/components";
+
+const ActionButton = styled(IconButton, {
+  shouldForwardProp: (prop) => prop !== "colorvariant",
+})(({ theme, colorvariant = "default" }) => {
+  const colors = {
+    default: {
+      color: theme.palette.primary.main,
+      border: `1px solid ${theme.palette.primary.light}`,
+      hover: theme.palette.primary.light + "33",
+    },
+    warning: {
+      color: theme.palette.warning.main,
+      border: `1px solid ${theme.palette.warning.light}`,
+      hover: theme.palette.warning.light + "33",
+    },
+    error: {
+      color: theme.palette.error.main,
+      border: `1px solid ${theme.palette.error.light}`,
+      hover: theme.palette.error.light + "33",
+    },
+    success: {
+      color: theme.palette.success.main,
+      border: `1px solid ${theme.palette.success.light}`,
+      hover: theme.palette.success.light + "33",
+    },
+  };
+
+  const variant = colors[colorvariant] || colors.default;
+
+  return {
+    width: 32,
+    height: 32,
+    borderRadius: "8px",
+    color: variant.color,
+    border: variant.border,
+    backgroundColor: "#fff",
+    "&:hover": {
+      backgroundColor: variant.hover,
+    },
+  };
+});
+
+const ActionsGroup = styled(Box)({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  flexWrap: "nowrap",
+  whiteSpace: "nowrap",
+});
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
   marginBottom: "30px",
@@ -85,11 +135,14 @@ export default function UserTable({
               <TableCell>Usuário</TableCell>
               <TableCell>Email</TableCell>
               <TableCell align="center">Papel</TableCell>
+              <TableCell align="center">Pontos Elegíveis</TableCell>
               <TableCell align="center">Pontos Totais</TableCell>
               <TableCell align="center">
                 {isDeletedView ? "Data Exclusão" : "Data Criação"}
               </TableCell>
-              <TableCell align="center">Ações</TableCell>
+              <TableCell align="center" sx={{ width: 130 }}>
+                Ações
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -127,82 +180,64 @@ export default function UserTable({
                 </TableCell>
                 <TableCell align="center">
                   <Box sx={{ fontSize: "14px", fontWeight: 500 }}>
-                    {user.points_sum.toLocaleString()}
+                    {user.points_eligible.toLocaleString("pt-BR")}
+                  </Box>
+                </TableCell>
+                <TableCell align="center">
+                  <Box sx={{ fontSize: "14px", fontWeight: 500 }}>
+                    {user.points_sum.toLocaleString("pt-BR")}
                   </Box>
                 </TableCell>
                 <TableCell align="center" sx={{ fontSize: "13px" }}>
                   {isDeletedView ? user.deleted_at : user.created_at}
                 </TableCell>
-                <TableCell align="center">
-                  <Box
-                    sx={{
-                      display: "flex",
-                      gap: { xs: 0.5, sm: 1 },
-                      justifyContent: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
+                <TableCell align="center" sx={{ py: 1 }}>
+                  <ActionsGroup>
                     {isDeletedView ? (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="success"
-                        startIcon={<RestoreIcon fontSize="small" />}
-                        onClick={() => onRestore(user.id)}
-                        sx={{
-                          fontSize: { xs: "10px", sm: "12px" },
-                          padding: { xs: "3px 6px", sm: "5px 8px" },
-                          minWidth: "auto",
-                        }}
-                      >
-                        Restaurar
-                      </Button>
+                      <Tooltip title="Restaurar" arrow>
+                        <ActionButton
+                          colorvariant="success"
+                          size="small"
+                          onClick={() => onRestore(user.id)}
+                          aria-label="Restaurar usuário"
+                        >
+                          <RestoreIcon sx={{ fontSize: 17 }} />
+                        </ActionButton>
+                      </Tooltip>
                     ) : (
                       <>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<EditIcon fontSize="small" />}
-                          onClick={() => onEdit(user)}
-                          sx={{
-                            fontSize: { xs: "10px", sm: "12px" },
-                            padding: { xs: "3px 6px", sm: "5px 8px" },
-                            minWidth: "auto",
-                          }}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="warning"
-                          startIcon={<LockIcon fontSize="small" />}
-                          onClick={() => onChangePassword(user)}
-                          sx={{
-                            fontSize: { xs: "10px", sm: "12px" },
-                            padding: { xs: "3px 6px", sm: "5px 8px" },
-                            minWidth: "auto",
-                          }}
-                        >
-                          Senha
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          startIcon={<DeleteIcon fontSize="small" />}
-                          onClick={() => onDelete(user.id)}
-                          sx={{
-                            fontSize: { xs: "10px", sm: "12px" },
-                            padding: { xs: "3px 6px", sm: "5px 8px" },
-                            minWidth: "auto",
-                          }}
-                        >
-                          Deletar
-                        </Button>
+                        <Tooltip title="Editar" arrow>
+                          <ActionButton
+                            size="small"
+                            onClick={() => onEdit(user)}
+                            aria-label="Editar usuário"
+                          >
+                            <EditIcon sx={{ fontSize: 17 }} />
+                          </ActionButton>
+                        </Tooltip>
+                        <Tooltip title="Alterar senha" arrow>
+                          <ActionButton
+                            colorvariant="warning"
+                            size="small"
+                            onClick={() => onChangePassword(user)}
+                            aria-label="Alterar senha"
+                          >
+                            <LockIcon sx={{ fontSize: 17 }} />
+                          </ActionButton>
+                        </Tooltip>
+                        <Tooltip title="Deletar" arrow>
+                          <ActionButton
+                            colorvariant="error"
+                            size="small"
+                            onClick={() => onDelete(user.id)}
+                            aria-label="Deletar usuário"
+                          >
+                            <DeleteIcon sx={{ fontSize: 17 }} />
+                          </ActionButton>
+                        </Tooltip>
                       </>
                     )}
-                  </Box>
+                  </ActionsGroup>
                 </TableCell>
               </TableRow>
             ))}

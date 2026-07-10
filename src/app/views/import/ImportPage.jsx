@@ -1,7 +1,7 @@
-import { Box, Button, Card, CircularProgress, Alert, AlertTitle, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select, MenuItem, Grid, Typography, IconButton } from "@mui/material";
+import { Box, Button, Card, CircularProgress, Alert, AlertTitle, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Select, MenuItem, Grid, Typography, IconButton, TextField } from "@mui/material";
 import { Breadcrumb, SimpleCard } from "app/components";
 import { styled } from "@mui/material/styles";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "react-toastify";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CloseIcon from "@mui/icons-material/Close";
@@ -56,6 +56,64 @@ export default function ImportPage() {
   const [preview, setPreview] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState(1);
+  const [pointsColumn, setPointsColumn] = useState("points");
+  const [parsedRows, setParsedRows] = useState([]);
+  const [totalRows, setTotalRows] = useState(0);
+
+  const getPointsColumnName = () => pointsColumn.trim() || "points";
+
+  const validateRows = (rows, columnName = getPointsColumnName()) => {
+    if (rows.length === 0) {
+      return { valid: false, message: "Arquivo vazio" };
+    }
+
+    const firstRow = rows[0];
+    const requiredColumns = ["email", "data", columnName];
+    const missingColumns = requiredColumns.filter((col) => !(col in firstRow));
+
+    if (missingColumns.length > 0) {
+      return {
+        valid: false,
+        message: `Arquivo deve conter as colunas: email, data, ${columnName}`,
+      };
+    }
+
+    return { valid: true };
+  };
+
+  const applyPreview = (rows, columnName, showToast = false) => {
+    const validation = validateRows(rows, columnName);
+
+    if (!validation.valid) {
+      setPreview([]);
+      if (showToast) {
+        toast.warning(validation.message);
+      }
+      return false;
+    }
+
+    setPreview(rows.slice(0, 5));
+    setTotalRows(rows.length);
+    if (showToast) {
+      toast.info(`${rows.length} registro(s) detectado(s). Mostrando preview dos 5 primeiros.`);
+    }
+    return true;
+  };
+
+  useEffect(() => {
+    if (parsedRows.length === 0) return;
+    applyPreview(parsedRows, getPointsColumnName());
+  }, [pointsColumn, parsedRows]);
+
+  const clearFile = () => {
+    setFile(null);
+    setPreview([]);
+    setParsedRows([]);
+    setTotalRows(0);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleFileSelect = (selectedFile) => {
     const validFormats = [".xlsx", ".xls", ".csv"];
@@ -83,38 +141,21 @@ export default function ImportPage() {
           return;
         }
 
-        const firstRow = rows[0];
-        const requiredColumns = ["email", "data", "points"];
-        const hasAllColumns = requiredColumns.every((col) => col in firstRow);
-
-        if (!hasAllColumns) {
-          toast.warning("Arquivo deve conter as colunas: email, data, points");
-          return;
+        const columnName = getPointsColumnName();
+        setParsedRows(rows);
+        const isValid = applyPreview(rows, columnName, true);
+        if (!isValid) {
+          setFile(null);
+          setParsedRows([]);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
         }
-
-        setPreview(rows.slice(0, 5));
-        toast.info(`${rows.length} registro(s) detectado(s). Mostrando preview dos 5 primeiros.`);
       };
       reader.readAsArrayBuffer(selectedFile);
     } catch (error) {
       toast.error("Erro ao processar arquivo");
       console.error("Error:", error);
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setFile(null);
-    setPreview([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const resetFile = () => {
-    setFile(null);
-    setPreview([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
     }
   };
 
@@ -130,7 +171,7 @@ export default function ImportPage() {
       const token = localStorage.getItem("accessToken");
       if (!token) {
         toast.warning("Token não encontrado. Faça login novamente.");
-        resetFile();
+        clearFile();
         return;
       }
 
@@ -140,8 +181,13 @@ export default function ImportPage() {
       const formData = new FormData();
       formData.append("file", file);
 
+      const params = new URLSearchParams({
+        type_id: String(selectedTypeId),
+        points_column: getPointsColumnName(),
+      });
+
       const response = await fetch(
-        `${apiHost}/transactions/upload?type_id=${selectedTypeId}`,
+        `${apiHost}/transactions/upload?${params.toString()}`,
         {
           method: "POST",
           headers: {
@@ -158,16 +204,15 @@ export default function ImportPage() {
         const errorMessage =
           responseData?.error || responseData?.message || "Erro ao importar dados";
         toast.error(errorMessage);
-        resetFile();
+        clearFile();
         return;
       }
 
-      toast.success(responseData?.message || `${preview.length} transações importadas com sucesso!`);
-      setFile(null);
-      setPreview([]);
+      toast.success(responseData?.message || `${totalRows} transações importadas com sucesso!`);
+      clearFile();
     } catch (error) {
       toast.error(error?.message || "Erro ao importar dados");
-      resetFile();
+      clearFile();
     } finally {
       setUploading(false);
     }
@@ -175,7 +220,6 @@ export default function ImportPage() {
 
   return (
     <Container>
-      {/* Breadcrumb */}
       <Box className="breadcrumb">
         <Breadcrumb
           routeSegments={[
@@ -185,10 +229,9 @@ export default function ImportPage() {
         />
       </Box>
 
-      {/* Card de Seleção de Tipo */}
       <Card elevation={0} sx={{ p: 3, mb: 3, border: "1px solid #e0e0e0" }}>
         <Grid container spacing={2} alignItems="flex-end">
-          <Grid item xs={12} sm={8}>
+          <Grid item xs={12} md={5}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
               Tipo de Transação *
             </Typography>
@@ -207,24 +250,45 @@ export default function ImportPage() {
               ))}
             </Select>
           </Grid>
-          <Grid item xs={12} sm={4}>
-            <Box sx={{ p: 2, backgroundColor: "#f5f5f5", borderRadius: 1 }}>
+
+          <Grid item xs={12} md={4}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              Coluna de Pontos
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+              Nome da coluna de pontos no arquivo importado
+            </Typography>
+            <TextField
+              fullWidth
+              value={pointsColumn}
+              onChange={(e) => setPointsColumn(e.target.value)}
+              placeholder="points"
+              helperText="Padrão: points (ex: ponto_eletrico)"
+            />
+          </Grid>
+
+          <Grid item xs={12} md={3}>
+            <Box sx={{ p: 2, backgroundColor: "#f5f5f5", borderRadius: 1, height: "100%" }}>
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                Tipo Selecionado:
+                Configuração atual:
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
                 {TRANSACTION_TYPES.find((t) => t.id === selectedTypeId)?.name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                Coluna: <strong>{getPointsColumnName()}</strong>
               </Typography>
             </Box>
           </Grid>
         </Grid>
       </Card>
 
-      {/* Upload Area */}
       <SimpleCard title="Importar Transações">
         <Alert severity="info" sx={{ mb: 3 }}>
           <AlertTitle>Formato esperado</AlertTitle>
-          O arquivo deve conter as colunas: <strong>email, data, points</strong>
+          O arquivo deve conter as colunas:{" "}
+          <strong>email</strong>, <strong>data</strong> e{" "}
+          <strong>{getPointsColumnName()}</strong>
         </Alert>
 
         <UploadCard component="label" elevation={0}>
@@ -267,7 +331,7 @@ export default function ImportPage() {
                 <IconButton
                   size="small"
                   color="error"
-                  onClick={handleRemoveFile}
+                  onClick={clearFile}
                   disabled={uploading}
                   title="Remover arquivo"
                 >
@@ -280,7 +344,9 @@ export default function ImportPage() {
                     <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                       <TableCell><strong>Email</strong></TableCell>
                       <TableCell><strong>Data</strong></TableCell>
-                      <TableCell align="right"><strong>Pontos</strong></TableCell>
+                      <TableCell align="right">
+                        <strong>{getPointsColumnName()}</strong>
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -288,7 +354,9 @@ export default function ImportPage() {
                       <TableRow key={idx}>
                         <TableCell>{row.email}</TableCell>
                         <TableCell>{row.data}</TableCell>
-                        <TableCell align="right">{row.points}</TableCell>
+                        <TableCell align="right">
+                          {row[getPointsColumnName()]}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -300,7 +368,7 @@ export default function ImportPage() {
               <Button
                 variant="outlined"
                 color="error"
-                onClick={handleRemoveFile}
+                onClick={clearFile}
                 disabled={uploading}
                 sx={{ flex: 1 }}
               >

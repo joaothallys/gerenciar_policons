@@ -1,4 +1,4 @@
-import { Box, Card, Button, Chip, Grid } from "@mui/material";
+import { Box, Card, Chip, Grid, IconButton, Tooltip } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -11,6 +11,36 @@ const MobileCardsContainer = styled(Box)(({ theme }) => ({
     display: "block",
   },
 }));
+
+const CardActionButton = styled(IconButton, {
+  shouldForwardProp: (prop) => prop !== "colorvariant",
+})(({ theme, colorvariant = "default" }) => {
+  const colors = {
+    default: theme.palette.primary.main,
+    warning: theme.palette.warning.main,
+    error: theme.palette.error.main,
+    success: theme.palette.success.main,
+  };
+
+  return {
+    flex: 1,
+    borderRadius: "8px",
+    color: colors[colorvariant] || colors.default,
+    border: `1px solid ${theme.palette.divider}`,
+    backgroundColor: "#fff",
+    py: 1,
+    "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+    },
+  };
+});
+
+const CardActionsRow = styled(Box)({
+  display: "flex",
+  gap: "8px",
+  pt: 1.5,
+  borderTop: "1px solid #f0f0f0",
+});
 
 const UserCard = styled(Card, {
   shouldForwardProp: (prop) => prop !== "isDeleted",
@@ -93,7 +123,7 @@ export default function UserCards({
           </Box>
 
           <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-            <Grid item xs={6}>
+            <Grid item xs={4}>
               <Box
                 sx={{
                   fontSize: "11px",
@@ -103,13 +133,29 @@ export default function UserCards({
                   fontWeight: 600,
                 }}
               >
-                Pontos
+                Pontos Elegíveis
               </Box>
               <Box sx={{ fontSize: "16px", fontWeight: 600 }}>
-                {user.points_sum.toLocaleString()}
+                {user.points_eligible.toLocaleString("pt-BR")}
               </Box>
             </Grid>
-            <Grid item xs={6}>
+            <Grid item xs={4}>
+              <Box
+                sx={{
+                  fontSize: "11px",
+                  color: "text.secondary",
+                  mb: 0.5,
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                }}
+              >
+                Pontos Totais
+              </Box>
+              <Box sx={{ fontSize: "16px", fontWeight: 600 }}>
+                {user.points_sum.toLocaleString("pt-BR")}
+              </Box>
+            </Grid>
+            <Grid item xs={4}>
               <Box
                 sx={{
                   fontSize: "11px",
@@ -127,66 +173,45 @@ export default function UserCards({
             </Grid>
           </Grid>
 
-          <Box
-            sx={{
-              display: "flex",
-              gap: 1,
-              pt: 1.5,
-              flexDirection: "column",
-              borderTop: "1px solid #f0f0f0",
-            }}
-          >
+          <CardActionsRow>
             {isDeletedView ? (
-              <Button
-                fullWidth
-                size="small"
-                variant="outlined"
-                color="success"
-                startIcon={<RestoreIcon fontSize="small" />}
-                onClick={() => onRestore(user.id)}
-                sx={{ fontSize: "12px", py: 0.8 }}
-              >
-                Restaurar
-              </Button>
+              <Tooltip title="Restaurar" arrow>
+                <CardActionButton
+                  colorvariant="success"
+                  onClick={() => onRestore(user.id)}
+                  aria-label="Restaurar usuário"
+                >
+                  <RestoreIcon fontSize="small" />
+                </CardActionButton>
+              </Tooltip>
             ) : (
               <>
-                <Button
-                  fullWidth
-                  size="small"
-                  variant="outlined"
-                  startIcon={<EditIcon fontSize="small" />}
-                  onClick={() => onEdit(user)}
-                  sx={{ fontSize: "12px", py: 0.8 }}
-                >
-                  Editar
-                </Button>
-                <Box sx={{ display: "flex", gap: 1 }}>
-                  <Button
-                    fullWidth
-                    size="small"
-                    variant="outlined"
-                    color="warning"
-                    startIcon={<LockIcon fontSize="small" />}
+                <Tooltip title="Editar" arrow sx={{ flex: 1 }}>
+                  <CardActionButton onClick={() => onEdit(user)} aria-label="Editar usuário">
+                    <EditIcon fontSize="small" />
+                  </CardActionButton>
+                </Tooltip>
+                <Tooltip title="Alterar senha" arrow sx={{ flex: 1 }}>
+                  <CardActionButton
+                    colorvariant="warning"
                     onClick={() => onChangePassword(user)}
-                    sx={{ fontSize: "12px", py: 0.8 }}
+                    aria-label="Alterar senha"
                   >
-                    Senha
-                  </Button>
-                  <Button
-                    fullWidth
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    startIcon={<DeleteIcon fontSize="small" />}
+                    <LockIcon fontSize="small" />
+                  </CardActionButton>
+                </Tooltip>
+                <Tooltip title="Deletar" arrow sx={{ flex: 1 }}>
+                  <CardActionButton
+                    colorvariant="error"
                     onClick={() => onDelete(user.id)}
-                    sx={{ fontSize: "12px", py: 0.8 }}
+                    aria-label="Deletar usuário"
                   >
-                    Deletar
-                  </Button>
-                </Box>
+                    <DeleteIcon fontSize="small" />
+                  </CardActionButton>
+                </Tooltip>
               </>
             )}
-          </Box>
+          </CardActionsRow>
         </UserCard>
       ))}
     </MobileCardsContainer>
