@@ -50,19 +50,135 @@ const TRANSACTION_TYPES = [
   { id: 10, name: "Pontos Ganhos - Academia" },
 ];
 
+const extractRows = (worksheet) =>
+  XLSX.utils
+    .sheet_to_json(worksheet, { defval: "" })
+    .filter((row) =>
+      Object.keys(row).some((key) => String(row[key]).trim() !== "")
+    );
+
+const parseFileRows = (data, fileName) => {
+  const isCsv = fileName.endsWith(".csv");
+
+  if (!isCsv) {
+    const workbook = XLSX.read(data, { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    return extractRows(worksheet);
+  }
+
+  for (const delimiter of [";", ",", "\t"]) {
+    const workbook = XLSX.read(data, { type: "array", FS: delimiter });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = extractRows(worksheet);
+
+    if (rows.length > 0 && Object.keys(rows[0]).length >= 3) {
+      return rows;
+    }
+  }
+
+  const workbook = XLSX.read(data, { type: "array" });
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  return extractRows(worksheet);
+};
+
+const normalizeColumnName = (key) =>
+  String(key).trim().replace(/^\uFEFF/, "");
+
+const findColumnKey = (row, targetName) => {
+  const normalizedTarget = normalizeColumnName(targetName).toLowerCase();
+  return Object.keys(row).find(
+    (key) => normalizeColumnName(key).toLowerCase() === normalizedTarget
+  );
+};
+
+const getDetectedColumns = (row) =>
+  Object.keys(row).map(normalizeColumnName).filter(Boolean);
+
+const TYPE_COLUMN_HINTS = {
+  1: ["pontos metas", "pontos meta", "meta"],
+  2: ["trimestral"],
+  3: ["jogos"],
+  4: ["ponto eletronico", "ponto eletrônico", "frequencia", "frequência"],
+  5: ["penalidades organização empresa", "organizacao", "organização"],
+  6: ["penalidades trimestral"],
+  9: ["cursos"],
+  10: ["academia"],
+};
+
+const getPointsColumnOptions = (row) => {
+  if (!row) return [];
+
+  return getDetectedColumns(row).filter(
+    (col) => !["email", "data"].includes(col.toLowerCase())
+  );
+};
+
+const suggestPointsColumn = (options, typeId, currentValue = "") => {
+  if (
+    currentValue &&
+    options.some((option) => option.toLowerCase() === currentValue.toLowerCase())
+  ) {
+    return currentValue;
+  }
+
+  const hints = TYPE_COLUMN_HINTS[typeId] || [];
+
+  for (const hint of hints) {
+    const match = options.find(
+      (option) =>
+        option.toLowerCase() === hint || option.toLowerCase().includes(hint)
+    );
+    if (match) return match;
+  }
+
+  const pointsMatch = options.find((option) => option.toLowerCase() === "points");
+  if (pointsMatch) return pointsMatch;
+
+  return options[0] || "";
+};
+
+const normalizeImportRows = (rows, pointsColumnName) => {
+  if (!rows.length) return [];
+
+  const pointsKey = (pointsColumnName || "points").trim() || "points";
+  const firstRow = rows[0];
+  const emailKey = findColumnKey(firstRow, "email");
+  const dataKey = findColumnKey(firstRow, "data");
+  const pointsKeyActual = findColumnKey(firstRow, pointsKey);
+
+  return rows.map((row) => {
+    const normalized = {};
+
+    if (emailKey !== undefined) normalized.email = row[emailKey];
+    if (dataKey !== undefined) normalized.data = row[dataKey];
+    if (pointsKeyActual !== undefined) normalized[pointsKey] = row[pointsKeyActual];
+
+    return normalized;
+  });
+};
+
 export default function ImportPage() {
   const fileInputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState(1);
-  const [pointsColumn, setPointsColumn] = useState("points");
+  const [pointsColumn, setPointsColumn] = useState("");
+  const [availablePointsColumns, setAvailablePointsColumns] = useState([]);
+  const [rawParsedRows, setRawParsedRows] = useState([]);
   const [parsedRows, setParsedRows] = useState([]);
   const [totalRows, setTotalRows] = useState(0);
 
-  const getPointsColumnName = () => pointsColumn.trim() || "points";
+  const getPointsColumnName = () => pointsColumn.trim();
 
-  const validateRows = (rows, columnName = getPointsColumnName()) => {
+  const validateRows = (rows, columnName, sourceRow = null) => {
+    if (!columnName) {
+      return {
+        valid: false,
+        message: "Selecione a coluna de pontos do arquivo",
+      };
+    }
+
     if (rows.length === 0) {
       return { valid: false, message: "Arquivo vazio" };
     }
@@ -72,17 +188,20 @@ export default function ImportPage() {
     const missingColumns = requiredColumns.filter((col) => !(col in firstRow));
 
     if (missingColumns.length > 0) {
+      const detectedColumns = sourceRow ? getDetectedColumns(sourceRow) : getDetectedColumns(firstRow);
       return {
         valid: false,
-        message: `Arquivo deve conter as colunas: email, data, ${columnName}`,
+        message: `Arquivo deve conter as colunas: email, data, ${columnName}. Colunas encontradas: ${
+          detectedColumns.length > 0 ? detectedColumns.join(", ") : "nenhuma"
+        }`,
       };
     }
 
     return { valid: true };
   };
 
-  const applyPreview = (rows, columnName, showToast = false) => {
-    const validation = validateRows(rows, columnName);
+  const applyPreview = (rows, columnName, sourceRow = null, showToast = false) => {
+    const validation = validateRows(rows, columnName, sourceRow);
 
     if (!validation.valid) {
       setPreview([]);
@@ -101,14 +220,32 @@ export default function ImportPage() {
   };
 
   useEffect(() => {
-    if (parsedRows.length === 0) return;
-    applyPreview(parsedRows, getPointsColumnName());
-  }, [pointsColumn, parsedRows]);
+    if (rawParsedRows.length === 0) return;
+
+    const columnName = getPointsColumnName();
+    const normalizedRows = normalizeImportRows(rawParsedRows, columnName);
+    setParsedRows(normalizedRows);
+    applyPreview(normalizedRows, columnName, rawParsedRows[0]);
+  }, [pointsColumn, rawParsedRows]);
+
+  useEffect(() => {
+    if (rawParsedRows.length === 0) return;
+
+    const options = getPointsColumnOptions(rawParsedRows[0]);
+    const suggested = suggestPointsColumn(options, selectedTypeId, pointsColumn);
+
+    if (suggested && suggested !== pointsColumn) {
+      setPointsColumn(suggested);
+    }
+  }, [selectedTypeId, rawParsedRows]);
 
   const clearFile = () => {
     setFile(null);
     setPreview([]);
+    setRawParsedRows([]);
     setParsedRows([]);
+    setAvailablePointsColumns([]);
+    setPointsColumn("");
     setTotalRows(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -131,26 +268,28 @@ export default function ImportPage() {
       const reader = new FileReader();
       reader.onload = (event) => {
         const data = event.target?.result;
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(worksheet);
+        const rows = parseFileRows(data, fileName);
 
         if (rows.length === 0) {
           toast.warning("Arquivo vazio");
           return;
         }
 
-        const columnName = getPointsColumnName();
-        setParsedRows(rows);
-        const isValid = applyPreview(rows, columnName, true);
-        if (!isValid) {
-          setFile(null);
-          setParsedRows([]);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-          }
+        const options = getPointsColumnOptions(rows[0]);
+        const suggested = suggestPointsColumn(options, selectedTypeId, pointsColumn);
+
+        setRawParsedRows(rows);
+        setAvailablePointsColumns(options);
+        setPointsColumn(suggested);
+
+        if (!suggested) {
+          toast.info("Arquivo carregado. Selecione a coluna de pontos para continuar.");
+          return;
         }
+
+        const normalizedRows = normalizeImportRows(rows, suggested);
+        setParsedRows(normalizedRows);
+        applyPreview(normalizedRows, suggested, rows[0], true);
       };
       reader.readAsArrayBuffer(selectedFile);
     } catch (error) {
@@ -161,7 +300,11 @@ export default function ImportPage() {
 
   const handleImport = async () => {
     if (!file || preview.length === 0) {
-      toast.warning("Nenhum arquivo selecionado");
+      toast.warning(
+        getPointsColumnName()
+          ? "Nenhum arquivo válido para importar"
+          : "Selecione a coluna de pontos antes de importar"
+      );
       return;
     }
 
@@ -253,18 +396,37 @@ export default function ImportPage() {
 
           <Grid item xs={12} md={4}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-              Coluna de Pontos
+              Coluna de Pontos *
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Nome da coluna de pontos no arquivo importado
+              {availablePointsColumns.length > 0
+                ? "Escolha qual coluna do arquivo será importada"
+                : "Será preenchida automaticamente após selecionar o arquivo"}
             </Typography>
-            <TextField
-              fullWidth
-              value={pointsColumn}
-              onChange={(e) => setPointsColumn(e.target.value)}
-              placeholder="points"
-              helperText="Padrão: points (ex: ponto_eletrico)"
-            />
+            {availablePointsColumns.length > 0 ? (
+              <Select
+                fullWidth
+                displayEmpty
+                value={pointsColumn}
+                onChange={(e) => setPointsColumn(e.target.value)}
+              >
+                <MenuItem value="" disabled>
+                  Selecione a coluna
+                </MenuItem>
+                {availablePointsColumns.map((column) => (
+                  <MenuItem key={column} value={column}>
+                    {column}
+                  </MenuItem>
+                ))}
+              </Select>
+            ) : (
+              <TextField
+                fullWidth
+                disabled
+                placeholder="Selecione um arquivo primeiro"
+                helperText="O arquivo pode ter várias colunas de pontos"
+              />
+            )}
           </Grid>
 
           <Grid item xs={12} md={3}>
@@ -276,8 +438,14 @@ export default function ImportPage() {
                 {TRANSACTION_TYPES.find((t) => t.id === selectedTypeId)?.name}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                Coluna: <strong>{getPointsColumnName()}</strong>
+                Coluna:{" "}
+                <strong>{getPointsColumnName() || "não selecionada"}</strong>
               </Typography>
+              {availablePointsColumns.length > 0 && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                  {availablePointsColumns.length} coluna(s) de pontos detectada(s)
+                </Typography>
+              )}
             </Box>
           </Grid>
         </Grid>
@@ -286,10 +454,23 @@ export default function ImportPage() {
       <SimpleCard title="Importar Transações">
         <Alert severity="info" sx={{ mb: 3 }}>
           <AlertTitle>Formato esperado</AlertTitle>
-          O arquivo deve conter as colunas:{" "}
-          <strong>email</strong>, <strong>data</strong> e{" "}
-          <strong>{getPointsColumnName()}</strong>
+          O arquivo deve conter as colunas <strong>email</strong>, <strong>data</strong> e
+          pelo menos uma coluna de pontos.
+          {availablePointsColumns.length > 0 && (
+            <>
+              {" "}
+              Colunas de pontos detectadas:{" "}
+              <strong>{availablePointsColumns.join(", ")}</strong>
+            </>
+          )}
         </Alert>
+
+        {file && preview.length === 0 && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            Selecione a coluna de pontos correspondente ao tipo de transação para visualizar o
+            preview.
+          </Alert>
+        )}
 
         <UploadCard component="label" elevation={0}>
           <Box sx={{ fontSize: "16px", fontWeight: 600, mb: 1 }}>
