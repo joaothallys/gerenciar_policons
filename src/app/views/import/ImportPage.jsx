@@ -398,64 +398,85 @@ export default function ImportPage() {
       </Box>
 
       <Card elevation={0} sx={{ p: 3, mb: 3, border: "1px solid #e0e0e0" }}>
-        <Grid container spacing={2} alignItems="flex-end">
-          <Grid item xs={12} md={5}>
+        <Grid container spacing={3} alignItems="stretch">
+          <Grid item xs={12} md={5} sx={{ display: "flex", flexDirection: "column" }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
               Tipo de Transação *
             </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            <Typography
+              variant="body2"
+              color="textSecondary"
+              sx={{ mb: 2, minHeight: 40, lineHeight: 1.5 }}
+            >
               Selecione o tipo de transação que será importada
             </Typography>
-            <Select
-              fullWidth
-              value={selectedTypeId}
-              onChange={(e) => setSelectedTypeId(e.target.value)}
-            >
-              {TRANSACTION_TYPES.map((type) => (
-                <MenuItem key={type.id} value={type.id}>
-                  {type.id} - {type.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </Grid>
-
-          <Grid item xs={12} md={4}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-              Coluna de Pontos *
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              {availablePointsColumns.length > 0
-                ? "Escolha qual coluna do arquivo será importada"
-                : "Será preenchida automaticamente após selecionar o arquivo"}
-            </Typography>
-            {availablePointsColumns.length > 0 ? (
+            <Box sx={{ mt: "auto" }}>
               <Select
                 fullWidth
-                displayEmpty
-                value={pointsColumn}
-                onChange={(e) => setPointsColumn(e.target.value)}
+                value={selectedTypeId}
+                onChange={(e) => setSelectedTypeId(e.target.value)}
               >
-                <MenuItem value="" disabled>
-                  Selecione a coluna
-                </MenuItem>
-                {availablePointsColumns.map((column) => (
-                  <MenuItem key={column} value={column}>
-                    {column}
+                {TRANSACTION_TYPES.map((type) => (
+                  <MenuItem key={type.id} value={type.id}>
+                    {type.id} - {type.name}
                   </MenuItem>
                 ))}
               </Select>
-            ) : (
-              <TextField
-                fullWidth
-                disabled
-                placeholder="Selecione um arquivo primeiro"
-                helperText="O arquivo pode ter várias colunas de pontos"
-              />
-            )}
+            </Box>
           </Grid>
 
-          <Grid item xs={12} md={3}>
-            <Box sx={{ p: 2, backgroundColor: "#f5f5f5", borderRadius: 1, height: "100%" }}>
+          <Grid item xs={12} md={4} sx={{ display: "flex", flexDirection: "column" }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              Coluna de Pontos *
+            </Typography>
+            <Typography
+              variant="body2"
+              color="textSecondary"
+              sx={{ mb: 2, minHeight: 40, lineHeight: 1.5 }}
+            >
+              {availablePointsColumns.length > 0
+                ? "Escolha qual coluna do arquivo será importada"
+                : "Será preenchida automaticamente após selecionar o arquivo. O arquivo pode ter várias colunas de pontos"}
+            </Typography>
+            <Box sx={{ mt: "auto" }}>
+              {availablePointsColumns.length > 0 ? (
+                <Select
+                  fullWidth
+                  displayEmpty
+                  value={pointsColumn}
+                  onChange={(e) => setPointsColumn(e.target.value)}
+                >
+                  <MenuItem value="" disabled>
+                    Selecione a coluna
+                  </MenuItem>
+                  {availablePointsColumns.map((column) => (
+                    <MenuItem key={column} value={column}>
+                      {column}
+                    </MenuItem>
+                  ))}
+                </Select>
+              ) : (
+                <TextField
+                  fullWidth
+                  disabled
+                  placeholder="Selecione um arquivo primeiro"
+                />
+              )}
+            </Box>
+          </Grid>
+
+          <Grid item xs={12} md={3} sx={{ display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+            <Box
+              sx={{
+                p: 2,
+                backgroundColor: "#f5f5f5",
+                borderRadius: 1,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                minHeight: 56,
+              }}
+            >
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
                 Configuração atual:
               </Typography>
