@@ -50,9 +50,36 @@ const TRANSACTION_TYPES = [
   { id: 10, name: "Pontos Ganhos - Academia" },
 ];
 
+const formatImportDate = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toLocaleDateString("pt-BR");
+  }
+
+  if (typeof value === "number" && value > 30000 && value < 100000) {
+    const utcDays = Math.floor(value - 25569);
+    const date = new Date(utcDays * 86400 * 1000);
+    return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  }
+
+  const str = String(value).trim();
+
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+    return str;
+  }
+
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  }
+
+  return str;
+};
+
 const extractRows = (worksheet) =>
   XLSX.utils
-    .sheet_to_json(worksheet, { defval: "" })
+    .sheet_to_json(worksheet, { defval: "", raw: false, dateNF: "dd/mm/yyyy" })
     .filter((row) =>
       Object.keys(row).some((key) => String(row[key]).trim() !== "")
     );
@@ -60,14 +87,16 @@ const extractRows = (worksheet) =>
 const parseFileRows = (data, fileName) => {
   const isCsv = fileName.endsWith(".csv");
 
+  const readOptions = { type: "array", cellDates: true };
+
   if (!isCsv) {
-    const workbook = XLSX.read(data, { type: "array" });
+    const workbook = XLSX.read(data, readOptions);
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
     return extractRows(worksheet);
   }
 
   for (const delimiter of [";", ",", "\t"]) {
-    const workbook = XLSX.read(data, { type: "array", FS: delimiter });
+    const workbook = XLSX.read(data, { ...readOptions, FS: delimiter });
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = extractRows(worksheet);
 
@@ -76,7 +105,7 @@ const parseFileRows = (data, fileName) => {
     }
   }
 
-  const workbook = XLSX.read(data, { type: "array" });
+  const workbook = XLSX.read(data, readOptions);
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
   return extractRows(worksheet);
 };
@@ -150,7 +179,7 @@ const normalizeImportRows = (rows, pointsColumnName) => {
     const normalized = {};
 
     if (emailKey !== undefined) normalized.email = row[emailKey];
-    if (dataKey !== undefined) normalized.data = row[dataKey];
+    if (dataKey !== undefined) normalized.data = formatImportDate(row[dataKey]);
     if (pointsKeyActual !== undefined) normalized[pointsKey] = row[pointsKeyActual];
 
     return normalized;
@@ -314,7 +343,6 @@ export default function ImportPage() {
       const token = localStorage.getItem("accessToken");
       if (!token) {
         toast.warning("Token não encontrado. Faça login novamente.");
-        clearFile();
         return;
       }
 
@@ -347,15 +375,12 @@ export default function ImportPage() {
         const errorMessage =
           responseData?.error || responseData?.message || "Erro ao importar dados";
         toast.error(errorMessage);
-        clearFile();
         return;
       }
 
       toast.success(responseData?.message || `${totalRows} transações importadas com sucesso!`);
-      clearFile();
     } catch (error) {
       toast.error(error?.message || "Erro ao importar dados");
-      clearFile();
     } finally {
       setUploading(false);
     }
