@@ -100,6 +100,18 @@ export default function TransactionDialog({
             />
           )}
 
+          <TextField
+            fullWidth
+            type="date"
+            label="Data de Competência"
+            name="competency_date"
+            value={formData.competency_date}
+            onChange={onFormChange}
+            required
+            InputLabelProps={{ shrink: true }}
+            helperText="Formato YYYY-MM-DD"
+          />
+
           <Select
             fullWidth
             name="payment_method_id"

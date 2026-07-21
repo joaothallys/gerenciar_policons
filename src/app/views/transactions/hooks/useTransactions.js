@@ -37,6 +37,7 @@ export const useTransactions = () => {// Main data states
     points: "",
     payment_method_id: "",
     productID: "",
+    competency_date: "",
   });
 
   // Loading states
@@ -128,6 +129,7 @@ export const useTransactions = () => {// Main data states
         payment_method_name: t.payment_method?.name || "",
         productID: t.product_id || null,
         productName: t.product?.name || productsById[t.product_id] || "-",
+        competency_date: t.competency_date ? String(t.competency_date).slice(0, 10) : "",
       }));
 
       setTransactions(mapped);
@@ -282,6 +284,7 @@ export const useTransactions = () => {// Main data states
       points: "",
       payment_method_id: "",
       productID: "",
+      competency_date: "",
     });
     setEditingId(null);
     setOpenDialog(true);
@@ -312,7 +315,7 @@ export const useTransactions = () => {// Main data states
       const isPointsGained = [1, 2, 3, 9, 10].includes(typeId);
 
       // Validação: loja exige produto; demais tipos exigem pontos
-      if (!formData.userID || !formData.typeID) {
+      if (!formData.userID || !formData.typeID || !formData.competency_date) {
         toast.warning("Preencha todos os campos obrigatórios");
         setLoading(false);
         return;
@@ -331,6 +334,7 @@ export const useTransactions = () => {// Main data states
       const submitData = {
         user_id: parseInt(formData.userID),
         type_id: typeId,
+        competency_date: formData.competency_date,
         // Tipos 7 e 8: pontos derivados do produto pela API
         ...(isStoreTransaction ? {} : { points: parseInt(formData.points) }),
         ...(isPointsGained ? {} : { payment_method_id: parseInt(formData.payment_method_id) }),
@@ -372,6 +376,7 @@ export const useTransactions = () => {// Main data states
       points: transaction.points,
       payment_method_id: transaction.payment_method_id || "",
       productID: transaction.productID || "",
+      competency_date: transaction.competency_date || "",
     });
     setEditingId(transaction.id);
     setOpenDialog(true);

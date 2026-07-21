@@ -28,6 +28,18 @@ const MetaCard = styled(Card)(({ theme }) => ({
   },
 }));
 
+function formatMonthRefLabel(monthRef) {
+  const monthKey = String(monthRef).slice(0, 7);
+  const [year, month] = monthKey.split("-");
+  if (!year || !month) return monthKey;
+
+  return new Date(Date.UTC(Number(year), Number(month) - 1, 1)).toLocaleString("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export default function MetasPage() {
   const [metas, setMetas] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -245,7 +257,7 @@ export default function MetasPage() {
                   MÊS SELECIONADO
                 </Typography>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                  {filteredMeta.month_ref?.slice(0, 7)}
+                  {formatMonthRefLabel(filteredMeta.month_ref)}
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -338,8 +350,7 @@ export default function MetasPage() {
           {/* Cards View */}
           <Box sx={{ mb: 3 }}>
             {paginatedMetas.map((meta) => {
-              const monthDate = new Date(meta.month_ref);
-              const monthName = monthDate.toLocaleString("pt-BR", { month: "long", year: "numeric" });
+              const monthName = formatMonthRefLabel(meta.month_ref);
               const progress = Math.min((meta.meta_perc / 1000) * 100, 100);
 
               return (
